@@ -15,9 +15,6 @@ import random
 
 class Agent:
     
-
-    
-    
     agentID = 0
     
     def __init__(self, graph):
@@ -46,20 +43,19 @@ class Agent:
         print("Agent {0} born with strategy {1}".format(self.id, self.strategy))
             
         
-    def budgeting(self, payoff):
+    def budgeting(self, payoff):                               # revenue per round
         self.revenue.append(payoff)
         
         
     def adapt(self, graph):                                    # first check highest value, after update strategy
         
-        self.wallet.append(round(np.mean(self.revenue), 2))
+        self.wallet.append(round(np.sum(self.revenue), 2))
         payMax = [np.sum(self.revenue), self]                   # calc with sum or mean?
         
         self.neighbours = graph.neighbors(self.id)
         
         if testing:
             print("\n{0}:".format(self))
-          
         
         for n in self.neighbours:
             
@@ -77,13 +73,12 @@ class Agent:
             if payMax[0] is neighRevenue and payMax[1] != self:
                 choiceList = [payMax[0], neighRevenue]
                 payMax[0] = random.choice(choiceList)
-                
         
         # bestNeighbour is the neighbour that will be imitated
         self.bestNeighbour = payMax[1]
         
         if testing:
-            if payMax[0] > np.mean(self.revenue):
+            if payMax[0] > np.sum(self.revenue):
                 print("bestNeighbour of {0} is {1} with {2} over {3}".format(self, self.bestNeighbour, payMax[0], np.sum(self.revenue))) #mean or sum?
                 
 
@@ -112,20 +107,21 @@ class Agent:
             self.strategy = self.bestNeighbour.strategy
             print("{0} exploiting strategy from {1}: {2}".format(self, self.bestNeighbour, self.strategy))
       
-        
-    """
-    def revenueClear(self):
-        self.revenue.clear()
-    """        
+                
     def shareStats(self):
-        stats = [self.strategy['offer'], self.strategy['accept'], np.mean(self.revenue)]
+        stats = [self.strategy['offer'], self.strategy['accept'], np.mean(self.revenue)] #problem: only final strategy recorded
         return(stats)
-        
-        
+    
+    
+    def kill(self):
+        del self
+
+       
 class Population:
     
     
     def __init__(self, agentCount, edgeDegree):
+        
         self.agentCount = agentCount
         self.agents = set()
         self.graph = nx.Graph()
@@ -139,7 +135,14 @@ class Population:
             agent.introduce()
             self.agents.add(agent)
             birth += 1
-    
+            
+            
+    def killAgents(self):
+        Agent.agentID = 0
+        for agent in self.agents:
+            #del agent
+            agent.kill()
+            
     
     def constructGraph(self):
         for agent in self.agents:   #can be improved maybe?
@@ -158,7 +161,6 @@ class Population:
             print("this is the amount of neighbours for agent {0}: {1}".format(agent.id, len(agent.node)))
         nx.draw(self.graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
         plt.show()
-
 
  
            
@@ -179,8 +181,12 @@ class ultimatumGame:
         
         if degree >= agentCount:
             raise ValueError("Amount of edges per node cannot be equal to or greater than amount of agents")
-            
-            
+    
+    
+    def getData(self):
+        return(self.data)        
+    
+        
     def game(self, proposer, responder):
         if testing:
             print("Ultimatum Game between (proposer) {0} and (responder) {1}:"
@@ -208,6 +214,7 @@ class ultimatumGame:
                 
     
     def play(self):
+        
         self.population.populate()
         self.population.constructGraph()
         
@@ -268,6 +275,7 @@ class ultimatumGame:
             for agent in self.population.agents:
                 print("\ntotal wallet for {0}: {1}".format(agent, agent.wallet))
                 print("final payoff for {0} is: {1}, average: {2}".format(agent, round(np.sum(agent.wallet),4), round(np.mean(agent.wallet), 4)))
+                print("this is stats for agent {0}: {1}".format(agent, agent.shareStats()))
         
         
         #self.offerList.clear()
@@ -281,6 +289,8 @@ class ultimatumGame:
         #plt.subplot(3,1,3)
         self.plotting.payPlot()
         #plt.show()
+        
+        
         
 class Plot:
     
@@ -304,6 +314,8 @@ class Plot:
         plt.ylim([0,1])
         plt.show()
         """
+        
+        
     def acceptPlot(self):
         xval = range(self.rounds)
         yval = self.stats[0:self.rounds,2]
@@ -317,6 +329,7 @@ class Plot:
         plt.ylim([0,1])
         plt.show()
         """
+        
     def payPlot(self):
         xval = range(self.rounds)
         yval = self.stats[0:self.rounds,4]
@@ -356,18 +369,31 @@ class Strategy:
 class Simulation:
     
     def __init__(self):#, nSim, rounds, agentCount, edgeDegree):
-        self.nSim = nSim
+        self.nSim = simulations
         self.rounds = rounds
         self.agentCount = agentCount
         self.edgeDegree = edgeDegree
         
-        for sim in range(nSim):
+        self.data = np.zeros((self.rounds, 6, simulations), dtype=float)
+        self.finalPlot = Plot(self.rounds, self.data)
+    
+    def run(self):
+        
+        for sim in range(simulations):
+            print("\n=== Commencing Simulation {0} ===\n".format(sim+1))
+            
             UG = ultimatumGame(rounds, agentCount, edgeDegree)
             UG.play()
+            
+            UG.population.killAgents()
+            
+            self.data[:,:,sim] = UG.getData()
+            
+        print(self.data.shape)
+        
+        #self.finalPlot.offerPlot()
 
-
-
-simulations = 1
+simulations = 2
 rounds = 10
 agentCount = 2
 edgeDegree = 1
@@ -380,8 +406,10 @@ randomPlay = True
 
 testing = True
 
-UG = ultimatumGame(rounds, agentCount, edgeDegree)
-UG.play()
+#UG = ultimatumGame(rounds, agentCount, edgeDegree)
+#UG.play()
+game = Simulation()
+game.run()
 
 # ideas: graph generator for e.g. difference in SP, CC, various graphs (random, regular well-mixed etc)
 
