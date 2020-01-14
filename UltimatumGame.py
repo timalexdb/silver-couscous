@@ -33,8 +33,9 @@ class Agent:
         self.strategy = Strategy().randomize()
         self.wallet = []        # wallet keeps track of total revenue #array will be more efficient later
         self.revenue = []       # revenue just keeps track of gains per round
-        self.success = 0
+        self.successes = 0
         self.bestNeighbour = 0
+        self.data = []
         
         if str(self) in data2.columns:
             del data2[str(self)]
@@ -49,13 +50,15 @@ class Agent:
     
     
     def introduce(self):
-        print("Agent {0} born with strategy {1}".format(self.id, self.strategy))
+        print("{0} born with strategy {1}".format(self, self.strategy))
             
         
-    def budgeting(self, payoff):                               # revenue per round
+    def budgeting(self, payoff, role, partner):                               # revenue per round
         self.revenue.append(payoff)
         if payoff > 0:
-            self.success += 1
+            self.successes += 1
+            
+        self.data.append((partner, payoff, role))        
         
         
     def adapt(self, graph):                                    # first check highest value, after update strategy
@@ -107,8 +110,7 @@ class Agent:
         #print("this is changeprob: {0}, len({3}):{1}, len({4}):{2}".format(round(changeProb, 2), len(self.node), len(self.bestNeighbour.node), self, self.bestNeighbour))
         
         if random.random() < explore:
-            self.strategy['offer'] = random.randint(1,10)/10
-            self.strategy['accept'] = random.randint(1,10)/10
+            self.strategy = Strategy().randomize()
             print("{0} exploring and taking new strategy {1}".format(self, self.strategy))
             
         elif proportional:
@@ -121,12 +123,33 @@ class Agent:
                 
     def shareStats(self):
         stats = [self.strategy['offer'], self.strategy['accept'], np.mean(self.revenue)] # share stats every round
+        #print("this is self.data for {0}: {1}".format(self, self.data))
         return(stats)
     
     
     def kill(self):
         del self
 
+
+
+
+class graphClass:
+     
+    def __init__(self):
+         self.agentCount = agentCount
+         self.edgeDegree = edgeDegree
+         
+         
+    def createGraph(self):
+        if demo is True:
+            graph = nx.Graph()
+        else:
+            graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None)
+        return(graph)
+         
+    
+    
+    
        
 class Population:
     
@@ -135,12 +158,15 @@ class Population:
         
         self.agentCount = agentCount
         self.agents = set()
+        self.graph = graphClass().createGraph()
+        self.degree = edgeDegree
+        
+        """
         if demo is True:
             self.graph = nx.Graph()
         else:
             self.graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None)
-        self.degree = edgeDegree
-        
+        """
         
     def populate(self):
         birth = 0
@@ -175,7 +201,7 @@ class Population:
         nx.draw(self.graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
         plt.show()
 
- 
+
            
 class ultimatumGame:
     
@@ -190,6 +216,8 @@ class ultimatumGame:
         self.acceptList = []
         self.payList = []
         
+        self.graph = self.population.graph
+        
         self.plotting = Plot(self.rounds, self.data)
 
         data2 = str(self.population.agents)
@@ -203,7 +231,7 @@ class ultimatumGame:
         return(self.data)        
     
         
-    def game(self, proposer, responder):
+    def game(self, proposer, responder, currentRound):         # the actual interaction between prop and resp
         if testing:
             print("Ultimatum Game between (proposer) {0} and (responder) {1}:"
                   .format(proposer, responder))
@@ -212,12 +240,13 @@ class ultimatumGame:
         offer = proposer.getStrategy()['offer']
         accept = responder.getStrategy()['accept']
         
-        if offer is 1.0:
-            raise ValueError("{0} got offer strategy of 1.0".format(proposer))
-        if accept is 1.0:
-            raise ValueError("{0} got accept strategy of 1.0".format(responder))
+        if offer == 1.0:
+            raise ValueError("{0} got offer strategy of 1.0 ({1})".format(proposer, offer))
+        if accept == 1.0:
+            raise ValueError("{0} got accept strategy of 1.0({1})".format(responder, offer))
         
         if offer >= accept:
+            success = 1
             payPro = round(1 - offer, 1)
             payRes = offer   
             if testing:
@@ -225,17 +254,21 @@ class ultimatumGame:
                       .format(proposer, payPro, responder, payRes))
         
         else:
+            success = 0
             payPro = 0
             payRes = 0
             if testing:
                 print("Offer {0} ({1}) too low for acceptance {2} ({3})"
                       .format(offer, proposer, accept, responder))
-    
-        proposer.budgeting(payPro)
-        responder.budgeting(payRes)
+        
+        self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)] = [offer, accept, success]
+        print("edgedata (offer, accept, success): " +str(self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)]))
+        
+        proposer.budgeting(payPro, "proposer", responder)
+        responder.budgeting(payRes, "responder", proposer)
                 
     
-    def play(self):
+    def play(self):                              # selection of players and structure surrounding an interaction
         
         self.population.populate()
         self.population.constructGraph()
@@ -261,15 +294,15 @@ class ultimatumGame:
                         j = random.choice(range(2))
                         proposer = struct.nodes[proposers[j]]['agent']
                         responder = struct.nodes[responders[j]]['agent']
-                        self.game(proposer, responder)
+                        self.game(proposer, responder, n)
                         print("proposer {0} and responder {1}".format(proposer, responder))
                 else:
                     
                     for i in range(len(proposers)):
                         proposer = struct.nodes[proposers[i]]['agent']
                         responder = struct.nodes[responders[i]]['agent']
-                        self.game(proposer, responder)
-                        
+                        self.game(proposer, responder, n)
+                   
 
             for agent in self.population.agents:
                 agent.adapt(struct)
@@ -286,7 +319,8 @@ class ultimatumGame:
                 self.acceptList.append(stats[1])
                 self.payList.append(stats[2])
                 
-                agent.updateStrategy(n)
+                if n != (self.rounds - 1):
+                    agent.updateStrategy(n)
                 
             self.data[n, 0] = np.mean(self.offerList)
             self.data[n, 1] = np.var(self.offerList)
@@ -295,7 +329,6 @@ class ultimatumGame:
             self.data[n, 4] = np.mean(self.payList)
             self.data[n, 5] = np.var(self.payList)
             
-            #print(data2.shape)
             
             self.offerList.clear()
             self.acceptList.clear()
@@ -304,7 +337,7 @@ class ultimatumGame:
         if testing:           
             for agent in self.population.agents:
                 print("\ntotal wallet for {0}: {1}".format(agent, agent.wallet))
-                print("final payoff for {0} is: {1}, average: {2}".format(agent, round(np.sum(agent.wallet),4), round((np.sum(agent.wallet)/agent.success), 4)))
+                print("final payoff for {0} is: {1}, average: {2}".format(agent, round(np.sum(agent.wallet),4), round((np.sum(agent.wallet)/agent.successes), 4)))
                 #print("this is stats for agent {0}: {1}".format(agent, agent.shareStats()))
         
         
@@ -392,6 +425,10 @@ class Strategy:
         strategy = {}
         strategy["offer"] = random.choice(list(range(1,10,1)))/10#random.randrange(1,10)/10
         strategy["accept"] = random.choice(list(range(1,10,1)))/10#random.randrange(1,10)/10
+        if strategy["offer"] > 0.9:
+            raise ValueError("randomize fucks up offer")
+        if strategy["accept"] > 0.9:
+            raise ValueError("randomize fucks up accept")
         return(strategy)
     
 
@@ -442,7 +479,7 @@ class Simulation:
 
 simulations = 2
 rounds = 20
-agentCount = 7
+agentCount = 4
 edgeDegree = 3
 
 # OCHASTICITY
@@ -452,7 +489,7 @@ proportional = True
 randomPlay = True
 
 testing = True
-demo = True
+demo = False
 
 agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
 
@@ -461,7 +498,7 @@ agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
 #dataMI = pd.DataFrame(np.zeros((40)),index = datadx)#np.random.randn(len(datadx), 1), index = datadx)
 data2 = pd.DataFrame(index=range(rounds), columns = agentList)       # just been messing around with this. REMEMBER .ILOC()
 data3 = dict()                                  # stores dataframes per simulation
-#pd.DataFrame(index=range(simulations)) #can' get Data2 into Data3.
+#pd.DataFrame(index=range(simulations)) #can't get Data2 into Data3.
 
 #UG = ultimatumGame(rounds, agentCount, edgeDegree)
 #UG.play()
