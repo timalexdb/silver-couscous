@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import random
-#import math
 
 
 class Agent:
@@ -19,17 +18,17 @@ class Agent:
     agentID = 0
     
     def __init__(self, graph):
-        self.id = Agent.agentID #should tie this to node
+        self.id = Agent.agentID
         self.name = "Agent " +str(self.id)
         Agent.agentID += 1
         
         self.node = graph[self.id]
-        graph.nodes[self.id]['agent'] = self
+        graph.nodes[self.id]['agent'] = self #agentID and nodeID correspond; agent accessible directly through node key
         self.neighbours = set()
         
         self.strategy = Strategy().randomize()
-        self.wallet = []        # wallet keeps track of total revenue #array will be more efficient later
-        self.revenue = []       # revenue just keeps track of gains per round
+        self.wallet = []        # wallet keeps track of total revenue
+        self.revenue = []       # revenue keeps track of #gains per round
         self.successes = 0
         self.bestNeighbour = 0
         self.data = []
@@ -38,12 +37,14 @@ class Agent:
             del data2[str(self)]
         data2[str(self)] = ""
     
+    
     def __repr__(self):
         return("Agent %d" %self.id)# + "S({0},{1})".format(self.strategy['offer'], self.strategy['accept']))
         
     
     def getStrategy(self):
         return(self.strategy)
+    
     
     
     def introduce(self):
@@ -63,28 +64,36 @@ class Agent:
         self.wallet.append(round(np.sum(self.revenue), 2))
         payMax = [np.sum(self.revenue), self]                   # calc with sum or mean?
         
-        self.neighbours = graph.neighbors(self.id)
+        self.neighbours = list(graph.neighbors(self.id))
+        
+        #while max(listofneighbours) == (previous max):
+        #   maxNeighlist.append(max(listofneighbours))
+        #   listofneighbours.remove(max(listofneighbours))
+        
         
         if testing:
             print("\n{0}:".format(self))
         
+        #maxN = map(lambda payM, neighR: neighR >= payM, payMax[0], 
+        
         for n in self.neighbours:
             
-            neighRevenue = np.sum(graph.nodes[n]['agent'].revenue)
-            
+            neighRevenue = [np.sum(graph.nodes[n]['agent'].revenue), graph.nodes[n]['agent']]
+
             if testing:
                 print("{0} : revenue = {1}".format(graph.nodes[n]['agent'], round(neighRevenue, 2)))
-            
-            if payMax[0] < neighRevenue:
                 
-                payMax = [neighRevenue, graph.nodes[n]['agent']]
+            if payMax[0] < neighRevenue[0]:
+                payMax = neighRevenue
             
             # if neighbours have similar revenue, none can be benefited by neighbour order. doesn't account for focal agent
             
-            if payMax[0] is neighRevenue and payMax[1] != self:
-                choiceList = [payMax[0], neighRevenue]
-                payMax[0] = random.choice(choiceList)
-        
+            if payMax[0] is neighRevenue[0] and payMax[1] != self:
+                choiceList = [payMax, neighRevenue]
+                payMax = random.choice(choiceList)
+                
+                
+                
         # bestNeighbour is the neighbour that will be imitated
         self.bestNeighbour = payMax[1]
         
@@ -419,8 +428,8 @@ class Simulation:
 
 simulations = 2
 rounds = 20
-agentCount = 8
-edgeDegree = 3
+agentCount = 6
+edgeDegree = 4
 
 # OCHASTICITY
 explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
@@ -428,7 +437,7 @@ explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob 
 proportional = True
 randomPlay = True
 
-testing = True
+testing = False
 demo = False
 
 agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
