@@ -149,6 +149,9 @@ class graphClass:
         graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None)
         return(graph)
          
+    # implement structural measures here! also store graph struct + information here so that graphClass can be run by itself and OFFER graphs(...)
+    # (...)to program instead of necessarily being called by program.
+    
     
     
     
