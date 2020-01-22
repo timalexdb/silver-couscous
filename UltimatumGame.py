@@ -24,13 +24,13 @@ class Agent:
         
         self.node = graph[self.id]
         graph.nodes[self.id]['agent'] = self #agentID and nodeID correspond; agent accessible directly through node key
-        self.neighbours = set()
+        #self.neighbours = set()
         
         self.strategy = Strategy().randomize()
         self.wallet = []        # wallet keeps track of total revenue
         self.revenue = []       # revenue keeps track of #gains per round
         self.successes = 0
-        self.bestNeighbour = 0
+        self.exemplar = 0
         self.data = []
         
         if str(self) in data2.columns:
@@ -64,7 +64,7 @@ class Agent:
         self.wallet.append(round(np.sum(self.revenue), 2))
         payMax = [np.sum(self.revenue), self]                   # calc with sum or mean?
         
-        self.neighbours = list(graph.neighbors(self.id))
+        neighbours = list(graph.neighbors(self.id))
         
         #while max(listofneighbours) == (previous max):
         #   maxNeighlist.append(max(listofneighbours))
@@ -76,7 +76,7 @@ class Agent:
         
         #maxN = map(lambda payM, neighR: neighR >= payM, payMax[0], 
         
-        for n in self.neighbours:
+        for n in neighbours:
             
             neighRevenue = [np.sum(graph.nodes[n]['agent'].revenue), graph.nodes[n]['agent']]
 
@@ -94,26 +94,26 @@ class Agent:
                 
                 
                 
-        # bestNeighbour is the neighbour that will be imitated
-        self.bestNeighbour = payMax[1]
+        # exemplar is the neighbour that will be imitated
+        self.exemplar = payMax[1]
         
         if testing:
             if payMax[0] > np.sum(self.revenue):
-                print("bestNeighbour of {0} is {1} with {2} over {3}".format(self, self.bestNeighbour, payMax[0], np.sum(self.revenue))) #mean or sum?
+                print("exemplar of {0} is {1} with {2} over {3}".format(self, self.exemplar, payMax[0], np.sum(self.revenue))) #mean or sum?
                 
 
     def updateStrategy(self, currentRound):
         self.revenue.clear()
         
         if testing:
-            print("{0}: Revenue of best neighbour {1}: {2}".format(self, self.bestNeighbour, np.mean(self.bestNeighbour.wallet[currentRound])))
+            print("{0}: Revenue of best neighbour {1}: {2}".format(self, self.exemplar, np.mean(self.exemplar.wallet[currentRound])))
         
         #insert probability here
         revSelf = self.wallet[currentRound]
-        revOpp = self.bestNeighbour.wallet[currentRound]
+        revOpp = self.exemplar.wallet[currentRound]
         
-        changeProb = (revOpp - revSelf) / max(len(self.node), len(self.bestNeighbour.node))
-        #print("this is changeprob: {0}, len({3}):{1}, len({4}):{2}".format(round(changeProb, 2), len(self.node), len(self.bestNeighbour.node), self, self.bestNeighbour))
+        changeProb = (revOpp - revSelf) / max(len(self.node), len(self.exemplar.node))
+        #print("this is changeprob: {0}, len({3}):{1}, len({4}):{2}".format(round(changeProb, 2), len(self.node), len(self.exemplar.node), self, self.exemplar))
         
         if random.random() < explore:
             self.strategy = Strategy().randomize()
@@ -121,10 +121,10 @@ class Agent:
             
         elif proportional:
             if random.random() < changeProb: 
-                self.strategy = self.bestNeighbour.strategy
+                self.strategy = self.exemplar.strategy
         else:
-            self.strategy = self.bestNeighbour.strategy
-            print("{0} exploiting strategy from {1}: {2}".format(self, self.bestNeighbour, self.strategy))
+            self.strategy = self.exemplar.strategy
+            print("{0} exploiting strategy from {1}: {2}".format(self, self.exemplar, self.strategy))
       
                 
     def shareStats(self):
@@ -139,7 +139,7 @@ class Agent:
 
 
 
-class graphClass:
+class Graph:
      
     def __init__(self):
          self.agentCount = agentCount
@@ -162,7 +162,7 @@ class Population:
     def __init__(self):
         
         self.agents = set()
-        self.graph = graphClass().createGraph()
+        self.graph = Graph().createGraph()
         
         """
         if demo is True:
@@ -173,7 +173,7 @@ class Population:
         
     def populate(self):
         birth = 0
-        while birth < agentCount:#self.agentCount:
+        while birth < agentCount:
             agent = Agent(self.graph)
             agent.introduce()
             self.agents.add(agent)
@@ -388,11 +388,7 @@ class Strategy:
     
 class Simulation:
     
-    def __init__(self):#, nSim, rounds, agentCount, edgeDegree):
-        
-        #self.rounds = rounds
-        #self.agentCount = agentCount
-        #self.edgeDegree = edgeDegree
+    def __init__(self):
         
         #self.data = pd.DataFrame(#np.zeros((self.rounds, 6, simulations), dtype=float) # amount of rounds, amount of values, amount of sims
         self.data = np.zeros((rounds, 6, simulations), dtype=float) # n of rounds, n of agents, n of values, amount of sims
@@ -434,7 +430,7 @@ rounds = 20
 agentCount = 6
 edgeDegree = 4
 
-# OCHASTICITY
+# STOCHASTICITY
 explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
 
 proportional = True
@@ -447,13 +443,11 @@ agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
 
 #datadx = pd.MultiIndex.from_product([np.arange(0, simulations), np.arange(0, rounds), agentList])
 
+
 #dataMI = pd.DataFrame(np.zeros((40)),index = datadx)#np.random.randn(len(datadx), 1), index = datadx)
 data2 = pd.DataFrame(index=range(rounds), columns = agentList)       # just been messing around with this. REMEMBER .ILOC()
 data3 = dict()                                  # stores dataframes per simulation
 #pd.DataFrame(index=range(simulations)) #can't get Data2 into Data3.
-
-#UG = ultimatumGame(rounds, agentCount, edgeDegree)
-#UG.play()
 
 game = Simulation()
 game.run()
