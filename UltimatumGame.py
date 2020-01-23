@@ -81,7 +81,7 @@ class Agent:
             neighRevenue = [np.sum(graph.nodes[n]['agent'].revenue), graph.nodes[n]['agent']]
 
             if testing:
-                print("{0} : revenue = {1}".format(graph.nodes[n]['agent'], round(neighRevenue, 2)))
+                print("{0} : revenue = {1}".format(graph.nodes[n]['agent'], round(neighRevenue[0], 2)))
                 
             if payMax[0] < neighRevenue[0]:
                 payMax = neighRevenue
@@ -120,13 +120,13 @@ class Agent:
             print("{0} exploring and taking new strategy {1}".format(self, self.strategy))
             
         elif proportional:
-            if random.random() < changeProb: 
+            if random.random() < changeProb:
                 self.strategy = self.exemplar.strategy
         else:
             self.strategy = self.exemplar.strategy
             print("{0} exploiting strategy from {1}: {2}".format(self, self.exemplar, self.strategy))
-      
-                
+
+          
     def shareStats(self):
         stats = [self.strategy['offer'], self.strategy['accept'], np.mean(self.revenue)] # share stats every round
         #print("this is self.data for {0}: {1}".format(self, self.data))
@@ -138,7 +138,6 @@ class Agent:
 
 
 
-
 class Graph:
      
     def __init__(self):
@@ -146,9 +145,25 @@ class Graph:
          
          
     def createGraph(self):
-        graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None)
-        return(graph)
-         
+        graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None) # random graph characterised by mostly similar degree
+        # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+        # small-world network characterised by low 
+        
+        for line in nx.generate_edgelist(graph):
+            print(line)
+        print("graph created")
+        print(graph.nodes)
+        nx.write_edgelist(graph, "Graphs/test_graph")
+        print("graph written")
+        
+        
+        
+    #def graphCharacteristics(self, graph):
+        #connectivity = nx.all_pairs_node_connectivity
+        
+        #   assortativity (simil of conn in the graph w.r.t. degree or other attr)
+        #   average neighbor degree (average size of neighbor-neighborhood for each neighbor j of agent i)
+        #   
     # implement structural measures here! also store graph struct + information here so that graphClass can be run by itself and OFFER graphs(...)
     # (...)to program instead of necessarily being called by program.
     
@@ -158,11 +173,10 @@ class Graph:
        
 class Population:
     
-    
-    def __init__(self):
+    def __init__(self, graph):
         
         self.agents = set()
-        self.graph = Graph().createGraph()
+        self.graph = graph
         
         """
         if demo is True:
@@ -186,8 +200,8 @@ class Population:
             agent.kill()
             
                         
-        for agent in self.agents:
-            print("this is the amount of neighbours for agent {0}: {1}".format(agent.id, len(agent.node)))
+        #for agent in self.agents:
+        #    print("this is the amount of neighbours for agent {0}: {1}".format(agent.id, len(agent.node)))
         nx.draw(self.graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
         plt.show()
 
@@ -196,8 +210,8 @@ class Population:
 class ultimatumGame:
     
     
-    def __init__(self):
-        self.population = Population()
+    def __init__(self, graph):
+        self.population = Population(graph)
         
         self.data = np.zeros((rounds, 6), dtype=float)
         #self.data2 = pd.DataFrame(index=range(rounds))
@@ -209,7 +223,7 @@ class ultimatumGame:
         
         self.plotting = Plot(self.data)
 
-        data2 = str(self.population.agents)
+        #data2 = str(self.population.agents)
         
         
         if edgeDegree >= agentCount:
@@ -264,7 +278,7 @@ class ultimatumGame:
         struct = self.population.graph
         
         for n in range(rounds):
-            print("\n=== round {0} ===".format(n))
+            print("\n=== round {0} ===".format(n+1))
             
             for edge in struct.edges:
                 proposers = random.sample(edge, 2)
@@ -390,45 +404,36 @@ class Simulation:
     
     def __init__(self):
         
-        #self.data = pd.DataFrame(#np.zeros((self.rounds, 6, simulations), dtype=float) # amount of rounds, amount of values, amount of sims
         self.data = np.zeros((rounds, 6, simulations), dtype=float) # n of rounds, n of agents, n of values, amount of sims
         self.finalPlot = Plot(self.data)
         
-        #agentList = np.array(["Agent %d" % agent for agent in range(0,3)])
-        #self.datadx = pd.MultiIndex.from_product([np.arange(0, simulations), np.arange(0, rounds), np.arange(0, agentCount)])
-        #dataMI = 
-        
-
-        #datadx = pd.MultiIndex.from_product([np.arange(0, simulations), np.arange(0, rounds), agentList])
-
-        #dataMI = pd.DataFrame(np.random.randn(len(datadx), 1), index = datadx)
     
     def run(self):
         
         for sim in range(simulations):
             print("\n=== Commencing Simulation {0} ===\n".format(sim+1))
             
+            read = open("Graphs/test_graph", 'rb')
+            graph = nx.read_edgelist(read, nodetype=int)
+            print(graph.nodes)
             
-            UG = ultimatumGame()#rounds, agentCount, edgeDegree)
+            UG = ultimatumGame(graph)
             UG.play()
             
-            UG.population.killAgents()
-            #data3 = data2 #UG.getData()
-            #print(data2)
-            data3[sim] = data2
-            self.data[:,:,sim] = UG.getData()
+            for line in nx.generate_edgelist(graph):
+                print(line)
             
-        #print(self.data)            
-        #print(self.data.shape)
-        
-        #self.finalPlot.offerPlot()
+            UG.population.killAgents()
+            
+            #data3[sim] = data2
+            #self.data[:,:,sim] = UG.getData()
 
 
 
 simulations = 2
-rounds = 20
-agentCount = 6
-edgeDegree = 4
+rounds = 5
+agentCount = 2
+edgeDegree = 1
 
 # STOCHASTICITY
 explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
@@ -448,6 +453,8 @@ agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
 data2 = pd.DataFrame(index=range(rounds), columns = agentList)       # just been messing around with this. REMEMBER .ILOC()
 data3 = dict()                                  # stores dataframes per simulation
 #pd.DataFrame(index=range(simulations)) #can't get Data2 into Data3.
+
+Graph().createGraph()
 
 game = Simulation()
 game.run()
