@@ -142,19 +142,28 @@ class Graph:
      
     def __init__(self):
          self.agentCount = agentCount
-         
+         #p = (1/simulations)
          
     def createGraph(self):
-        graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None) # random graph characterised by mostly similar degree
-        # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
-        # small-world network characterised by low 
+        for i in range(simulations):
+            p = (i/0.5)/simulations
+        #    graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None) # random graph characterised by mostly similar degree
+        #    for line in nx.generate_edgelist(graph):
+        #        print(line)
+            
+            # use of edgeDegree below NOT CORRECT also barabasi has better version --> nx.extended_barabasi_albert_graph
+            #graph = nx.barabasi_albert_graph(agentCount, edgeDegree) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+            graph = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p)#0.001) # small-world network characterised by low 
+            
+            nx.write_edgelist(graph, "Graphs/test_barabasiV{0}".format(i))
+            #nx.write_edgelist(graph, "Graphs/test_connWattStroV{0}".format(i))
+            nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
+            plt.show()
         
-        for line in nx.generate_edgelist(graph):
-            print(line)
-        print("graph created")
-        print(graph.nodes)
-        nx.write_edgelist(graph, "Graphs/test_graph")
-        print("graph written")
+        print("graphs created")
+        
+        #print(graph.nodes)
+        #nx.write_edgelist(graph, "Graphs/test_graph")
         
         
         
@@ -202,8 +211,8 @@ class Population:
                         
         #for agent in self.agents:
         #    print("this is the amount of neighbours for agent {0}: {1}".format(agent.id, len(agent.node)))
-        nx.draw(self.graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
-        plt.show()
+        #nx.draw(self.graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
+        #plt.show()
 
 
            
@@ -413,27 +422,28 @@ class Simulation:
         for sim in range(simulations):
             print("\n=== Commencing Simulation {0} ===\n".format(sim+1))
             
-            read = open("Graphs/test_graph", 'rb')
+            #read = open("Graphs/test_barabasiV{0}".format(sim), 'rb')
+            read = open("Graphs/test_connWattStroV{0}".format(sim), 'rb')
             graph = nx.read_edgelist(read, nodetype=int)
             print(graph.nodes)
             
-            UG = ultimatumGame(graph)
-            UG.play()
+            #UG = ultimatumGame(graph)
+            #UG.play()
             
-            for line in nx.generate_edgelist(graph):
-                print(line)
+            #for line in nx.generate_edgelist(graph):
+            #    print(line)
             
-            UG.population.killAgents()
+            #UG.population.killAgents()
             
             #data3[sim] = data2
             #self.data[:,:,sim] = UG.getData()
 
 
 
-simulations = 2
-rounds = 5
-agentCount = 2
-edgeDegree = 1
+simulations = 50
+rounds = 10
+agentCount = 10
+edgeDegree = 4
 
 # STOCHASTICITY
 explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
@@ -463,4 +473,3 @@ game.run()
 #print(dataMI[0,3])
 # ideas: graph generator for e.g. difference in SP, CC, various graphs (random, regular well-mixed etc)
 
-#test
