@@ -143,6 +143,7 @@ class Graph:
     def __init__(self):
          self.agentCount = agentCount
          #p = (1/simulations)
+         graphData = []
          
     def createGraph(self):
         for i in range(simulations):
@@ -152,12 +153,14 @@ class Graph:
         #        print(line)
             
             # use of edgeDegree below NOT CORRECT also barabasi has better version --> nx.extended_barabasi_albert_graph
-            #graph = nx.barabasi_albert_graph(agentCount, edgeDegree) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+            graph2 = nx.barabasi_albert_graph(agentCount, edgeDegree) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+            #primer = nx.scale_free_graph(agentCount, alpha = 0.15, beta = 0.7, gamma = 0.15)
+            #graph2 = nx.Graph(primer)
             graph = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p)#0.001) # small-world network characterised by low 
-            
+            print(Graph.graphCharacteristics(graph2))
             nx.write_edgelist(graph, "Graphs/test_barabasiV{0}".format(i))
             #nx.write_edgelist(graph, "Graphs/test_connWattStroV{0}".format(i))
-            nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
+            nx.draw(graph2, node_color='r', with_labels=True, alpha=0.53, width=1.5)
             plt.show()
         
         print("graphs created")
@@ -167,8 +170,12 @@ class Graph:
         
         
         
-    #def graphCharacteristics(self, graph):
-        #connectivity = nx.all_pairs_node_connectivity
+    def graphCharacteristics(g):
+        connectivity = nx.all_pairs_node_connectivity(g)
+        APL = nx.average_shortest_path_length(g)    # average of all shortest paths between any node couple
+        clust = nx.average_clustering(g)
+        charList = [APL, clust]
+        return charList
         
         #   assortativity (simil of conn in the graph w.r.t. degree or other attr)
         #   average neighbor degree (average size of neighbor-neighborhood for each neighbor j of agent i)
@@ -176,8 +183,77 @@ class Graph:
     # implement structural measures here! also store graph struct + information here so that graphClass can be run by itself and OFFER graphs(...)
     # (...)to program instead of necessarily being called by program.
     
+    def barabal(n, m, seed=None):
+        """Returns a random graph according to the Barabási–Albert preferential
+        attachment model.
+        A graph of $n$ nodes is grown by attaching new nodes each with $m$
+        edges that are preferentially attached to existing nodes with high degree.
+        Parameters
+        ----------
+        n : int
+            Number of nodes
+        m : int
+            Number of edges to attach from a new node to existing nodes
+        seed : integer, random_state, or None (default)
+            Indicator of random number generation state.
+            See :ref:`Randomness<randomness>`.
+        Returns
+        -------
+        G : Graph
+        Raises
+        ------
+        NetworkXError
+            If `m` does not satisfy ``1 <= m < n``.
+        References
+        ----------
+        .. [1] A. L. Barabási and R. Albert "Emergence of scaling in
+           random networks", Science 286, pp 509-512, 1999.
+        """
     
+        if m < 1 or m >= n:
+            raise nx.NetworkXError(f"Barabási–Albert network must have m >= 1 and m < n, m = {m}, n = {n}")
     
+        # Add m initial nodes (m0 in barabasi-speak)
+        G = nx.empty_graph(m)
+        # Target nodes for new edges
+        targets = list(range(m))
+        # List of existing nodes, with nodes repeated once for each adjacent edge
+        repeated_nodes = []
+        # Start adding the other n-m nodes. The first node is m.
+        source = m
+        while source < n:
+            # Add edges to m nodes from the source.
+            G.add_edges_from(zip([source] * m, targets))
+            # Add one node to the list for each new edge just created.
+            repeated_nodes.extend(targets)
+            # And the new node "source" has m edges to add to the list.
+            repeated_nodes.extend([source] * m)
+            # Now choose m unique nodes from the existing nodes
+            # Pick uniformly from repeated_nodes (preferential attachment)
+            targets = nx._random_subset(repeated_nodes, m, seed)
+            source += 1
+            
+        return G
+
+    """
+    def _random_barabal(seq, m, rng, g):
+        targets = set()
+    
+        while len(targets) < m:
+            x = rng.choice(seq, p = _pref_attach(seq))
+            targets.add(x)
+            
+        return targets
+    
+    def _pref_attach(seq, g):
+        prefList = []
+        
+        for node in g.nodes():
+            p = (g.degree[node]/g.size)
+            print("node {0} with preference probability {1}".format(g.nodes[node], p))
+            prefList.append(p)
+        return prefList
+    """
     
        
 class Population:
@@ -440,9 +516,9 @@ class Simulation:
 
 
 
-simulations = 50
+simulations = 5
 rounds = 10
-agentCount = 10
+agentCount = 20
 edgeDegree = 4
 
 # STOCHASTICITY
