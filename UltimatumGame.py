@@ -147,23 +147,37 @@ class Graph:
          
     def createGraph(self):
         for i in range(simulations):
-            p = (i/0.5)/simulations
+            p = 0.1#(i*0.5)/simulations
+            m = agentCount - round((i+1)*(agentCount/simulations))
         #    graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None) # random graph characterised by mostly similar degree
         #    for line in nx.generate_edgelist(graph):
         #        print(line)
-            
             # use of edgeDegree below NOT CORRECT also barabasi has better version --> nx.extended_barabasi_albert_graph
-            graph2 = nx.barabasi_albert_graph(agentCount, edgeDegree) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+            #graph2 = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
             #primer = nx.scale_free_graph(agentCount, alpha = 0.15, beta = 0.7, gamma = 0.15)
             #graph2 = nx.Graph(primer)
+            
             graph = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p)#0.001) # small-world network characterised by low 
-            print(Graph.graphCharacteristics(graph2))
-            nx.write_edgelist(graph, "Graphs/test_barabasiV{0}".format(i))
+            #print(Graph.graphCharacteristics(graph2))
+            
+            #nx.write_edgelist(graph, "Graphs/test_barabasiV{0}".format(i))
             #nx.write_edgelist(graph, "Graphs/test_connWattStroV{0}".format(i))
-            nx.draw(graph2, node_color='r', with_labels=True, alpha=0.53, width=1.5)
+            
+# =============================================================================
+#            can this part directly below delet plos is for testng
+# =============================================================================
+            read = open("Graphs/test_connWattStroV{0}".format(i), 'rb')
+            graph = nx.read_edgelist(read, nodetype=int)
+# =============================================================================
+#             'til here
+# =============================================================================
+            nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
             plt.show()
+            
+            Graph.structuralPower(graph)
         
         print("graphs created")
+        
         
         #print(graph.nodes)
         #nx.write_edgelist(graph, "Graphs/test_graph")
@@ -171,10 +185,14 @@ class Graph:
         
         
     def graphCharacteristics(g):
-        connectivity = nx.all_pairs_node_connectivity(g)
+        #connectivity = nx.all_pairs_node_connectivity(g)
         APL = nx.average_shortest_path_length(g)    # average of all shortest paths between any node couple
         clust = nx.average_clustering(g)
+        
+        
+        
         charList = [APL, clust]
+        # for deg dist see https://networkx.github.io/documentation/stable/auto_examples/drawing/plot_degree_histogram.html
         return charList
         
         #   assortativity (simil of conn in the graph w.r.t. degree or other attr)
@@ -182,6 +200,60 @@ class Graph:
         #   
     # implement structural measures here! also store graph struct + information here so that graphClass can be run by itself and OFFER graphs(...)
     # (...)to program instead of necessarily being called by program.
+    
+    def structuralPower(g):
+        SPtotal = np.empty(agentCount)
+        groups = dict()
+        
+        for node in g.nodes:            
+            groups[node] = set(g.neighbors(node))
+            groups[node].add(node)
+            if testing:
+                print("groups for node {0} ({1}): {2}".format(node, len(groups[node]), groups[node]))        
+                
+        count = 0
+        
+        for node in groups:
+            SP = []
+            reach = set()
+            reach.update(groups[node])
+            neighlist = []
+
+            for member in groups:
+                # if the neigh-node is not node itself and they have at least some overlap...
+                if member is not node:
+                    if len(groups[node].intersection(groups[member])) > 0 or member in groups[node]:
+                        neighlist.append(member)
+                        
+                        # calculate the intersection and its length
+                        intersect = groups[node].intersection(groups[member])
+                        sectLen = len(intersect)
+                        
+                        # if node and neigh-node are actual neighbours...
+                        if member in groups[node]:
+                            # update the reach of focal node with neigh's neighbourhood
+                            reach.update(groups[member])
+                        
+                        # count of all direct and one-away indirect neighbours divided by len group of member
+                        SP.append(sectLen/len(groups[member]))
+                        
+                        count += 1
+            reach.remove(node)
+            
+            if testing:    
+                if node == 8:
+                    print("\nthese are group members for node {0}: {1}".format(node, neighlist))
+                    print("this is group for node {0}: {1}".format(node, groups[node]))
+                    print("this is SP for {0}: {1}, {2}".format(node, SP, (sum(SP)/len(reach))))
+                    print("length SP: {0}, length nbh: {1}, length reach: {2}".format(len(SP), len(groups[node]), len(reach)))
+                    print("this is reach for node {0}: {1}\n".format(node, reach))
+            SPtotal[node] = (sum(SP)/len(reach))
+        print("this is SPtotal: {0} \naverage: {1}".format(SPtotal, np.mean(SPtotal)))
+        
+        if len(SPtotal) != agentCount:
+            raise ValueError("something wrong with your SP.")
+
+        
     
     def barabal(n, m, seed=None):
         """Returns a random graph according to the Barabási–Albert preferential
@@ -503,22 +575,22 @@ class Simulation:
             graph = nx.read_edgelist(read, nodetype=int)
             print(graph.nodes)
             
-            #UG = ultimatumGame(graph)
-            #UG.play()
+            UG = ultimatumGame(graph)
+            #G.play()
             
             #for line in nx.generate_edgelist(graph):
             #    print(line)
             
-            #UG.population.killAgents()
+            UG.population.killAgents()
             
             #data3[sim] = data2
             #self.data[:,:,sim] = UG.getData()
 
 
 
-simulations = 5
+simulations = 1
 rounds = 10
-agentCount = 20
+agentCount = 9
 edgeDegree = 4
 
 # STOCHASTICITY
@@ -542,8 +614,8 @@ data3 = dict()                                  # stores dataframes per simulati
 
 Graph().createGraph()
 
-game = Simulation()
-game.run()
+#game = Simulation()
+#game.run()
 
 #print(dataMI.head())
 #print(dataMI[0,3])
