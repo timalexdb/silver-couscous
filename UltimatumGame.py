@@ -173,9 +173,8 @@ class Graph:
 # =============================================================================
             nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
             plt.show()
-            
-            Graph.structuralPower(graph)
         
+        print(Graph.graphCharacteristics(graph))
         print("graphs created")
         
         
@@ -188,10 +187,11 @@ class Graph:
         #connectivity = nx.all_pairs_node_connectivity(g)
         APL = nx.average_shortest_path_length(g)    # average of all shortest paths between any node couple
         clust = nx.average_clustering(g)
+        SPgraph = Graph.structuralPower(g)
+
         
         
-        
-        charList = [APL, clust]
+        charList = [APL, clust, SPgraph]
         # for deg dist see https://networkx.github.io/documentation/stable/auto_examples/drawing/plot_degree_histogram.html
         return charList
         
@@ -248,11 +248,12 @@ class Graph:
                     print("length SP: {0}, length nbh: {1}, length reach: {2}".format(len(SP), len(groups[node]), len(reach)))
                     print("this is reach for node {0}: {1}\n".format(node, reach))
             SPtotal[node] = (sum(SP)/len(reach))
-        print("this is SPtotal: {0} \naverage: {1}".format(SPtotal, np.mean(SPtotal)))
+        #print("this is SPtotal: {0} \naverage: {1}".format(SPtotal, np.mean(SPtotal)))
         
         if len(SPtotal) != agentCount:
             raise ValueError("something wrong with your SP.")
-
+        
+        return(np.mean(SPtotal))
         
     
     def barabal(n, m, seed=None):
