@@ -73,9 +73,7 @@ class Agent:
         
         if testing:
             print("\n{0}:".format(self))
-        
-        #maxN = map(lambda payM, neighR: neighR >= payM, payMax[0], 
-        
+                
         for n in neighbours:
             
             neighRevenue = [np.sum(graph.nodes[n]['agent'].revenue), graph.nodes[n]['agent']]
@@ -108,7 +106,6 @@ class Agent:
         if testing:
             print("{0}: Revenue of best neighbour {1}: {2}".format(self, self.exemplar, np.mean(self.exemplar.wallet[currentRound])))
         
-        #insert probability here
         revSelf = self.wallet[currentRound]
         revOpp = self.exemplar.wallet[currentRound]
         
@@ -142,39 +139,45 @@ class Graph:
      
     def __init__(self):
          self.agentCount = agentCount
-         #p = (1/simulations)
-         graphData = []
+         self.graphData = dict()
+         self.char1 = list()
+         self.char2 = list()
          
     def createGraph(self):
         for i in range(simulations):
-            p = 0.1#(i*0.5)/simulations
-            m = agentCount - round((i+1)*(agentCount/simulations))
-        #    graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None) # random graph characterised by mostly similar degree
-        #    for line in nx.generate_edgelist(graph):
-        #        print(line)
+            p = (i*0.5)/simulations
+            step = round((agentCount-1) / simulations, 0)
+            m = 1 + int(step*i) #agentCount - round((i)*(agentCount/simulations))-1
+        
             # use of edgeDegree below NOT CORRECT also barabasi has better version --> nx.extended_barabasi_albert_graph
-            #graph2 = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
-            #primer = nx.scale_free_graph(agentCount, alpha = 0.15, beta = 0.7, gamma = 0.15)
-            #graph2 = nx.Graph(primer)
+            SFN = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
             
-            graph = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p)#0.001) # small-world network characterised by low 
+            SWN = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p)#0.001) # small-world network characterised by low 
             #print(Graph.graphCharacteristics(graph2))
+            self.char1.append(Graph.graphCharacteristics(SWN))
+            self.char2.append(Graph.graphCharacteristics(SFN))
             
-            #nx.write_edgelist(graph, "Graphs/test_barabasiV{0}".format(i))
-            #nx.write_edgelist(graph, "Graphs/test_connWattStroV{0}".format(i))
+            nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}".format(i))
+            nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}".format(i))
+
             
 # =============================================================================
 #            can this part directly below delet plos is for testng
 # =============================================================================
-            read = open("Graphs/test_connWattStroV{0}".format(i), 'rb')
-            graph = nx.read_edgelist(read, nodetype=int)
+            #read = open("Graphs/test_connWattStroV{0}".format(i), 'rb')
+            #graph = nx.read_edgelist(read, nodetype=int)
 # =============================================================================
 #             'til here
 # =============================================================================
-            nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
-            plt.show()
+            #nx.draw(graph, node_color='b', with_labels=True, alpha=0.53, width=1.5)
+            #plt.show()
+            #nx.draw(graph2, node_color='r', with_labels=True, alpha=0.53, width=1.5)
+            #plt.show()
+            
+        self.graphData['Watts-Strogatz'], self.graphData['Barabasi-Albert'] = self.char1, self.char2
         
-        print(Graph.graphCharacteristics(graph))
+        #print("characteristics of Watts-Strogatz (SWN) {0}: \n{1}".format(i,Graph.graphCharacteristics(SWN)))
+        #print("characteristics of Barabasi-Albert (SFN) {0}: \n{1}".format(i,Graph.graphCharacteristics(SFN)))
         print("graphs created")
         
         
@@ -187,22 +190,22 @@ class Graph:
         #connectivity = nx.all_pairs_node_connectivity(g)
         APL = nx.average_shortest_path_length(g)    # average of all shortest paths between any node couple
         clust = nx.average_clustering(g)
-        SPgraph = Graph.structuralPower(g)
-
+        SPgraph, SPtotal = Graph.structuralPower(g)
+        SPtotal = [round(SP, 4) for SP in SPtotal]
         
-        
-        charList = [APL, clust, SPgraph]
+        # but which nodes??? adjust!
+        charList = ['APL: '+str(APL), 'CC: ' +str(clust), 'SPavg: ' + str(SPgraph), 'SP nodes: ' + str(SPtotal)]
         # for deg dist see https://networkx.github.io/documentation/stable/auto_examples/drawing/plot_degree_histogram.html
         return charList
         
         #   assortativity (simil of conn in the graph w.r.t. degree or other attr)
         #   average neighbor degree (average size of neighbor-neighborhood for each neighbor j of agent i)
         #   
-    # implement structural measures here! also store graph struct + information here so that graphClass can be run by itself and OFFER graphs(...)
-    # (...)to program instead of necessarily being called by program.
+    # implement structural measures here! also store graph struct + information here so that graphClass can be run by itself(...)
+    # (...) and OFFER graphs to program instead of necessarily being called by program.
     
     def structuralPower(g):
-        SPtotal = np.empty(agentCount)
+        SPtotal = list(range(agentCount))#np.empty(agentCount)
         groups = dict()
         
         for node in g.nodes:            
@@ -253,7 +256,7 @@ class Graph:
         if len(SPtotal) != agentCount:
             raise ValueError("something wrong with your SP.")
         
-        return(np.mean(SPtotal))
+        return((np.mean(SPtotal), SPtotal))
         
     
     def barabal(n, m, seed=None):
@@ -567,41 +570,58 @@ class Simulation:
         
     
     def run(self):
+        graphType = ['Watts-Strogatz', 'Barabasi-Albert']
         
-        for sim in range(simulations):
-            print("\n=== Commencing Simulation {0} ===\n".format(sim+1))
+        for g in graphType:
             
-            #read = open("Graphs/test_barabasiV{0}".format(sim), 'rb')
-            read = open("Graphs/test_connWattStroV{0}".format(sim), 'rb')
-            graph = nx.read_edgelist(read, nodetype=int)
-            print(graph.nodes)
-            
-            UG = ultimatumGame(graph)
-            #G.play()
-            
-            #for line in nx.generate_edgelist(graph):
-            #    print(line)
-            
-            UG.population.killAgents()
-            
-            #data3[sim] = data2
-            #self.data[:,:,sim] = UG.getData()
+            for sim in range(simulations):
+                print("\n=== Commencing Simulation {0} ===\n".format(sim+1))
+                
+                read = open("Graphs/{0}{1}".format(g, 'V'+str(sim)), 'rb')
+                #read = open("Graphs/test_connWattStroV{0}".format(sim), 'rb')
+                graph = nx.read_edgelist(read, nodetype=int)
+                print(graph.nodes)
+                #print("characteristics of {0}: \n{1}".format(g, gg.graphCharacteristics(graph)))
+                
+                nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
+                plt.title(g)
+                plt.show()
+                
+                if len(graph) > agentCount:
+                    raise ValueError("agents incorrectly replaced")
+                
+                print("characteristics of {0}({1}): \n{2}".format(g, sim, gg.graphData[g][sim]))
+                
+                UG = ultimatumGame(graph)
+                UG.play()
+                
+                UG.population.killAgents()
+                
+                #data3[sim] = data2
+                #self.data[:,:,sim] = UG.getData()
 
 
+# =============================================================================
+# HYPERPARAM
+# =============================================================================
 
-simulations = 1
+simulations = 5
 rounds = 10
-agentCount = 9
+agentCount = 6
 edgeDegree = 4
 
-# STOCHASTICITY
+
 explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
 
+# =============================================================================
+# GAME SETTINGS
+# =============================================================================
 proportional = True
 randomPlay = True
 
 testing = False
 demo = False
+
 
 agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
 
@@ -613,10 +633,11 @@ data2 = pd.DataFrame(index=range(rounds), columns = agentList)       # just been
 data3 = dict()                                  # stores dataframes per simulation
 #pd.DataFrame(index=range(simulations)) #can't get Data2 into Data3.
 
-Graph().createGraph()
+gg = Graph()
+gg.createGraph()
 
-#game = Simulation()
-#game.run()
+game = Simulation()
+game.run()
 
 #print(dataMI.head())
 #print(dataMI[0,3])
