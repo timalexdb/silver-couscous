@@ -10,6 +10,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import xarray as xr
 import random
 
 
@@ -144,16 +145,28 @@ class Graph:
          self.char2 = list()
          
     def createGraph(self):
-        for i in range(simulations):
-            p = (i*0.5)/simulations
-            step = round((agentCount-1) / simulations, 0)
-            m = 1 + int(step*i) #agentCount - round((i)*(agentCount/simulations))-1
+        m_step = np.linspace(1, agentCount, simulations, endpoint=False)
+        p_step = np.linspace(0, 0.6, simulations)
         
-            # use of edgeDegree below NOT CORRECT also barabasi has better version --> nx.extended_barabasi_albert_graph
-            SFN = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+        #print(plist)
+        
+        for i in range(simulations):
             
-            SWN = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p)#0.001) # small-world network characterised by low 
-            #print(Graph.graphCharacteristics(graph2))
+            p = p_step[i]
+            #step = (agentCount-1) / simulations
+            if int(m_step[i]) < agentCount:
+                m = int(m_step[i])
+            else:
+                m = (agentCount-1)
+            #print("M for barabasi-Albert: {0}".format(m))
+            
+            # --> nx.extended_barabasi_albert_graph?
+            SFN = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+            SWN = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p) # small-world network characterised by low 
+            
+            #SWN = nx.newman_watts_strogatz_graph(agentCount, edgeDegree, p)
+            #while not nx.is_connected(SWN):
+            #    SWN = nx.newman_watts_strogatz_graph(agentCount, edgeDegree, p)
             self.char1.append(Graph.graphCharacteristics(SWN))
             self.char2.append(Graph.graphCharacteristics(SFN))
             
@@ -176,6 +189,16 @@ class Graph:
             
         self.graphData['Watts-Strogatz'], self.graphData['Barabasi-Albert'] = self.char1, self.char2
         
+        for key in self.graphData.keys():
+            if key == 'Watts-Strogatz':
+                x = p_step
+                xlab = 'probability of rewiring random edge'
+            if key == 'Barabasi-Albert':
+                x = m_step
+                ylab = 'degree for each new agent'
+            Plot().measurePlot(key, x, gg.graphData)
+
+        
         #print("characteristics of Watts-Strogatz (SWN) {0}: \n{1}".format(i,Graph.graphCharacteristics(SWN)))
         #print("characteristics of Barabasi-Albert (SFN) {0}: \n{1}".format(i,Graph.graphCharacteristics(SFN)))
         print("graphs created")
@@ -194,7 +217,7 @@ class Graph:
         SPtotal = [round(SP, 4) for SP in SPtotal]
         
         # but which nodes??? adjust!
-        charList = ['APL: '+str(APL), 'CC: ' +str(clust), 'SPavg: ' + str(SPgraph), 'SP nodes: ' + str(SPtotal)]
+        charList = {'APL' : APL, 'CC' : clust, 'SPavg' : SPgraph, 'SPnodes' : SPtotal}
         # for deg dist see https://networkx.github.io/documentation/stable/auto_examples/drawing/plot_degree_histogram.html
         return charList
         
@@ -382,7 +405,7 @@ class ultimatumGame:
         
         self.graph = self.population.graph
         
-        self.plotting = Plot(self.data)
+        self.plotting = Plot()
 
         #data2 = str(self.population.agents)
         
@@ -499,39 +522,54 @@ class ultimatumGame:
                 print("\ntotal wallet for {0}: {1}".format(agent, agent.wallet))
                 print("final payoff for {0} is: {1}, average: {2}".format(agent, round(np.sum(agent.wallet),4), round((np.sum(agent.wallet)/agent.successes), 4)))
         
-        self.plotting.offerPlot()
-        self.plotting.acceptPlot()
-        self.plotting.payPlot()
+        # self.plotting.offerPlot(self.data)
+        # self.plotting.acceptPlot(self.data)
+        # self.plotting.payPlot(self.data)
         
     
 class Plot:
     
-    def __init__(self, stats):
+    def __init__(self):
         self.name = "None"
-        self.stats = stats
-        
-            
-    def offerPlot(self):
+                
+    def offerPlot(self, stats):
         
         xval = range(rounds)
-        yval = self.stats[0:rounds,0]
-        err = self.stats[0:rounds,1]
+        yval = stats[0:rounds,0]
+        err = stats[0:rounds,1]
         
         self.doPlot(xval, yval, err, "Average offer per round")
         
-    def acceptPlot(self):
+    def acceptPlot(self, stats):
         xval = range(rounds)
-        yval = self.stats[0:rounds,2]
-        err = self.stats[0:rounds,3]
+        yval = stats[0:rounds,2]
+        err = stats[0:rounds,3]
         
         self.doPlot(xval, yval, err, "Average accept per round")
         
-    def payPlot(self):
+    def payPlot(self, stats):
         xval = range(rounds)
-        yval = self.stats[0:rounds,4]
-        err = self.stats[0:rounds,5]
+        yval = stats[0:rounds,4]
+        err = stats[0:rounds,5]
         
         self.doPlot(xval, yval, err, "Average payoff per round")
+        
+    def measurePlot(self, key, xval, graphCharacteristics):
+        
+        #for g in graphType:
+        yAPL = list()
+        yCC = list()
+        
+        for sim in range(simulations):
+            yAPL.append(graphCharacteristics[key][sim]['APL'])
+            yCC.append(graphCharacteristics[key][sim]['CC'])
+        
+        plt.plot(xval, yAPL, 'D', color = 'r', linewidth = 0.5, markersize = 3, label = "APL")
+        plt.plot(xval, yCC, '2', color = 'b', linewidth = 0.5, markersize = 5, label = "CC")
+        plt.title('Average Path Length and Clustering Coefficient for ' + key)
+        plt.legend(loc='center right', shadow=True, ncol=1)
+        plt.savefig('Graphs/Characteristics Plot {0}(sim{1})'.format(key, simulations))
+        plt.show()
         
     def doPlot(self, x, y, err, name):
         plt.plot(x,y, '.-', color= 'black', linewidth = 0.5, markersize = 3)#, pointwidth = 0.3)
@@ -553,9 +591,9 @@ class Strategy:
         strategy["offer"] = random.choice(list(range(1,10,1)))/10
         strategy["accept"] = random.choice(list(range(1,10,1)))/10
         if strategy["offer"] > 0.9:
-            raise ValueError("randomize fucks up offer")
+            raise ValueError("randomize screws up offer")
         if strategy["accept"] > 0.9:
-            raise ValueError("randomize fucks up accept")
+            raise ValueError("randomize screws up accept")
         return(strategy)
     
 
@@ -566,38 +604,41 @@ class Simulation:
     def __init__(self):
         
         self.data = np.zeros((rounds, 6, simulations), dtype=float) # n of rounds, n of agents, n of values, amount of sims
-        self.finalPlot = Plot(self.data)
+        self.finalPlot = Plot()
         
     
     def run(self):
         graphType = ['Watts-Strogatz', 'Barabasi-Albert']
-        
+                
         for g in graphType:
             
             for sim in range(simulations):
-                print("\n=== Commencing Simulation {0} ===\n".format(sim+1))
+                print("\n=== Commencing Simulation {0} ===\n".format(sim))
                 
                 read = open("Graphs/{0}{1}".format(g, 'V'+str(sim)), 'rb')
                 #read = open("Graphs/test_connWattStroV{0}".format(sim), 'rb')
                 graph = nx.read_edgelist(read, nodetype=int)
-                print(graph.nodes)
+                
                 #print("characteristics of {0}: \n{1}".format(g, gg.graphCharacteristics(graph)))
                 
-                nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
-                plt.title(g)
-                plt.show()
+                if showGraph:
+                    nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
+                    plt.title('{0} (simulation {1}/{2})'.format(g, sim+1, simulations))
+                    plt.show()
+                    
                 
                 if len(graph) > agentCount:
                     raise ValueError("agents incorrectly replaced")
                 
                 print("characteristics of {0}({1}): \n{2}".format(g, sim, gg.graphData[g][sim]))
                 
+                
                 UG = ultimatumGame(graph)
                 UG.play()
                 
                 UG.population.killAgents()
                 
-                #data3[sim] = data2
+                data3[sim] = data2
                 #self.data[:,:,sim] = UG.getData()
 
 
@@ -605,13 +646,14 @@ class Simulation:
 # HYPERPARAM
 # =============================================================================
 
-simulations = 5
+simulations = 30
 rounds = 10
-agentCount = 6
-edgeDegree = 4
+agentCount = 20
+edgeDegree = 5
 
 
 explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
+
 
 # =============================================================================
 # GAME SETTINGS
@@ -621,7 +663,7 @@ randomPlay = True
 
 testing = False
 demo = False
-
+showGraph = False
 
 agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
 
@@ -630,7 +672,7 @@ agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
 
 #dataMI = pd.DataFrame(np.zeros((40)),index = datadx)#np.random.randn(len(datadx), 1), index = datadx)
 data2 = pd.DataFrame(index=range(rounds), columns = agentList)       # just been messing around with this. REMEMBER .ILOC()
-data3 = dict()                                  # stores dataframes per simulation
+data3 = np.array() #dict()                                  # stores dataframes per simulation
 #pd.DataFrame(index=range(simulations)) #can't get Data2 into Data3.
 
 gg = Graph()
