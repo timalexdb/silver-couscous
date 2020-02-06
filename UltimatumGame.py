@@ -195,8 +195,8 @@ class Graph:
                 xlab = 'probability of rewiring random edge'
             if key == 'Barabasi-Albert':
                 x = m_step
-                ylab = 'degree for each new agent'
-            Plot().measurePlot(key, x, gg.graphData)
+                xlab = 'degree for each new agent'
+            Plot().measurePlot(key, x, gg.graphData, xlab)
 
         
         #print("characteristics of Watts-Strogatz (SWN) {0}: \n{1}".format(i,Graph.graphCharacteristics(SWN)))
@@ -494,9 +494,9 @@ class ultimatumGame:
             for agent in self.population.agents:
                 stats = agent.shareStats()
                 
+                # row = round, col = agent, input = all stats from each agent in that round
                 data2.iloc[n, agent.id] = stats
                 
-                #idea: row = round, col = agent, input = all stats from each agent in that round
                 
                 self.offerList.append(stats[0])
                 self.acceptList.append(stats[1])
@@ -505,13 +505,12 @@ class ultimatumGame:
                 if n != (rounds - 1):
                     agent.updateStrategy(n)
                 
-            self.data[n, 0] = np.mean(self.offerList)
-            self.data[n, 1] = np.var(self.offerList)
-            self.data[n, 2] = np.mean(self.acceptList)
-            self.data[n, 3] = np.var(self.acceptList)
-            self.data[n, 4] = np.mean(self.payList)
-            self.data[n, 5] = np.var(self.payList)
-            
+            self.data[n, 0], self.data[n, 1] = np.mean(self.offerList), np.var(self.offerList)
+            #self.data[n, 1] = np.var(self.offerList)
+            self.data[n, 2], self.data[n, 3]  = np.mean(self.acceptList), np.var(self.acceptList)
+            #self.data[n, 3] = np.var(self.acceptList)
+            self.data[n, 4], self.data[n, 5] = np.mean(self.payList), np.var(self.payList)
+            #self.data[n, 5] = np.var(self.payList)
             
             self.offerList.clear()
             self.acceptList.clear()
@@ -554,7 +553,7 @@ class Plot:
         
         self.doPlot(xval, yval, err, "Average payoff per round")
         
-    def measurePlot(self, key, xval, graphCharacteristics):
+    def measurePlot(self, key, xval, graphCharacteristics, xlab):
         
         #for g in graphType:
         yAPL = list()
@@ -568,6 +567,7 @@ class Plot:
         plt.plot(xval, yCC, '2', color = 'b', linewidth = 0.5, markersize = 5, label = "CC")
         plt.title('Average Path Length and Clustering Coefficient for ' + key)
         plt.legend(loc='center right', shadow=True, ncol=1)
+        plt.xlabel(xlab)
         plt.savefig('Graphs/Characteristics Plot {0}(sim{1})'.format(key, simulations))
         plt.show()
         
@@ -603,7 +603,7 @@ class Simulation:
     
     def __init__(self):
         
-        self.data = np.zeros((rounds, 6, simulations), dtype=float) # n of rounds, n of agents, n of values, amount of sims
+        self.data = np.zeros((rounds, agentCount, simulations), dtype=float) # n of rounds, n of agents, n of values, amount of sims
         self.finalPlot = Plot()
         
     
@@ -638,18 +638,44 @@ class Simulation:
                 
                 UG.population.killAgents()
                 
-                data3[sim] = data2
+                
+                #arrayTest[:,:, sim] = data2
+                
+                #data3[sim,] = data2
                 #self.data[:,:,sim] = UG.getData()
-
+                
+                """
+                if 'agentInfo' not in globals():
+                    agentInfo = xr.DataArray(data2)
+                    agentInfo.expand_dims('sim')
+                else:
+                    xr.concat((agentInfo, data2), dim='sim')
+                """
+                if sim == 0:
+                    simData = xr.DataArray(data = data2, dims = ('Rounds', 'Agent')).expand_dims('Sim')
+                    
+                else:
+                    simData = xr.concat([simData, xr.DataArray(data = data2, dims = ('Rounds', 'Agent')).expand_dims('Sim')], dim='Sim')
+            
+            
+            if graphType.index(g) == 0:
+                gData = xr.DataArray(data = simData).expand_dims('Graph')
+                
+            else:
+                gData = xr.concat([gData, xr.DataArray(data = simData).expand_dims('Graph')], dim='Graph')
+                
+        gData = gData.assign_coords({'Rounds' : range(rounds), 'Agent' : agentList, 'Sim': range(simulations), 'Graph' : graphType})#.transpose(..., 'Agent')
+        
+        return(gData)
 
 # =============================================================================
 # HYPERPARAM
 # =============================================================================
 
-simulations = 30
+simulations = 10
 rounds = 10
-agentCount = 20
-edgeDegree = 5
+agentCount = 15
+edgeDegree = 4
 
 
 explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
@@ -667,21 +693,19 @@ showGraph = False
 
 agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
 
-#datadx = pd.MultiIndex.from_product([np.arange(0, simulations), np.arange(0, rounds), agentList])
 
 
 #dataMI = pd.DataFrame(np.zeros((40)),index = datadx)#np.random.randn(len(datadx), 1), index = datadx)
 data2 = pd.DataFrame(index=range(rounds), columns = agentList)       # just been messing around with this. REMEMBER .ILOC()
-data3 = np.array() #dict()                                  # stores dataframes per simulation
+
+
 #pd.DataFrame(index=range(simulations)) #can't get Data2 into Data3.
 
 gg = Graph()
 gg.createGraph()
 
 game = Simulation()
-game.run()
+blaTest = game.run()#.to_dataframe('Agent') # xr.DataArray(data=game.run(), coords={'Rounds' : range(rounds), 'Agent' : agentList, 'Sim': range(simulations)})
 
-#print(dataMI.head())
-#print(dataMI[0,3])
 # ideas: graph generator for e.g. difference in SP, CC, various graphs (random, regular well-mixed etc)
 
