@@ -34,9 +34,9 @@ class Agent:
         self.exemplar = 0
         self.data = []
         
-        if str(self) in data2.columns:
-            del data2[str(self)]
-        data2[str(self)] = ""
+        #if str(self) in dataSet.columns:
+        #    del dataSet[str(self)]
+        #dataSet[str(self)] = ""
     
     
     def __repr__(self):
@@ -398,6 +398,7 @@ class ultimatumGame:
         self.population = Population(graph)
         
         self.data = np.zeros((rounds, 6), dtype=float)
+        
         #self.data2 = pd.DataFrame(index=range(rounds))
         self.offerList = []
         self.acceptList = []
@@ -449,18 +450,22 @@ class ultimatumGame:
                       .format(offer, proposer, accept, responder))
         
         self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)] = [offer, accept, success]
-        print("edgedata (offer, accept, success): " +str(self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)]))
+        
+        #print("edgedata (offer, accept, success): " +str(self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)]))
         
         proposer.budgeting(payPro, "proposer", responder)
         responder.budgeting(payRes, "responder", proposer)
                 
     
-    def play(self):                              # selection of players and structure surrounding an interaction
+    def play(self, sim, dataSet):                              # selection of players and structure surrounding an interaction
         
         self.population.populate()
         
         struct = self.population.graph
+        #datalist = []
         
+        #self.dataTest = pd.DataFrame(index=range(rounds), columns=[np.array(["Agent %d" % agent for agent in range(0,agentCount)])], dtype=object)
+            
         for n in range(rounds):
             print("\n=== round {0} ===".format(n+1))
             
@@ -478,7 +483,7 @@ class ultimatumGame:
                         proposer = struct.nodes[proposers[j]]['agent']
                         responder = struct.nodes[responders[j]]['agent']
                         self.game(proposer, responder, n)
-                        print("proposer {0} and responder {1}".format(proposer, responder))
+                        #print("proposer {0} and responder {1}".format(proposer, responder))
                 else:
                     
                     for i in range(len(proposers)):
@@ -486,31 +491,29 @@ class ultimatumGame:
                         responder = struct.nodes[responders[i]]['agent']
                         self.game(proposer, responder, n)
                    
-
+    
+                
             for agent in self.population.agents:
                 agent.adapt(struct)
+                
             print("\n")
             
-            for agent in self.population.agents:
-                stats = agent.shareStats()
-                
+            for agent in self.population.agents:     
                 # row = round, col = agent, input = all stats from each agent in that round
-                data2.iloc[n, agent.id] = stats
+
+                dataSet.loc[n, sim][agent.name] = agent.shareStats()                
+                #datalist.append(agent.shareStats())
                 
-                
-                self.offerList.append(stats[0])
-                self.acceptList.append(stats[1])
-                self.payList.append(stats[2])
+                self.offerList.append(agent.shareStats()[0])
+                self.acceptList.append(agent.shareStats()[1])
+                self.payList.append(agent.shareStats()[2])
                 
                 if n != (rounds - 1):
                     agent.updateStrategy(n)
-                
+            
             self.data[n, 0], self.data[n, 1] = np.mean(self.offerList), np.var(self.offerList)
-            #self.data[n, 1] = np.var(self.offerList)
             self.data[n, 2], self.data[n, 3]  = np.mean(self.acceptList), np.var(self.acceptList)
-            #self.data[n, 3] = np.var(self.acceptList)
             self.data[n, 4], self.data[n, 5] = np.mean(self.payList), np.var(self.payList)
-            #self.data[n, 5] = np.var(self.payList)
             
             self.offerList.clear()
             self.acceptList.clear()
@@ -524,7 +527,8 @@ class ultimatumGame:
         # self.plotting.offerPlot(self.data)
         # self.plotting.acceptPlot(self.data)
         # self.plotting.payPlot(self.data)
-        
+                
+        #return(datalist)
     
 class Plot:
     
@@ -555,7 +559,6 @@ class Plot:
         
     def measurePlot(self, key, xval, graphCharacteristics, xlab):
         
-        #for g in graphType:
         yAPL = list()
         yCC = list()
         
@@ -608,18 +611,21 @@ class Simulation:
         
     
     def run(self):
-        graphType = ['Watts-Strogatz', 'Barabasi-Albert']
-                
+        #graphType = ['Watts-Strogatz', 'Barabasi-Albert']
+        
+        agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
+        indexGame = pd.MultiIndex.from_product((range(simulations), agentList), names=['Simulation', 'Agent'])
+        
         for g in graphType:
+            
+            gameData = pd.DataFrame(index=range(rounds), columns = indexGame)
             
             for sim in range(simulations):
                 print("\n=== Commencing Simulation {0} ===\n".format(sim))
                 
                 read = open("Graphs/{0}{1}".format(g, 'V'+str(sim)), 'rb')
-                #read = open("Graphs/test_connWattStroV{0}".format(sim), 'rb')
                 graph = nx.read_edgelist(read, nodetype=int)
                 
-                #print("characteristics of {0}: \n{1}".format(g, gg.graphCharacteristics(graph)))
                 
                 if showGraph:
                     nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
@@ -627,58 +633,60 @@ class Simulation:
                     plt.show()
                     
                 
-                if len(graph) > agentCount:
+                if len(graph) != agentCount:
                     raise ValueError("agents incorrectly replaced")
                 
                 print("characteristics of {0}({1}): \n{2}".format(g, sim, gg.graphData[g][sim]))
                 
                 
+                #indexGraph = pd.MultiIndex.from_product((sim, list(graph.edges)), names=['Simulation', 'Agent'])
+                #tempData = pd.DataFrame(index = range(rounds), columns = indexGraph)
+                
+                print("this is graph.edges: {0}".format(graph.edges))
+                
                 UG = ultimatumGame(graph)
-                UG.play()
+                UG.play(sim, gameData)
                 
                 UG.population.killAgents()
                 
+                print("This is graph.edges: \n {0}".format(graph.edges))
+                if sim == 4:
+                    print("This is dat for sim 0: {0}".format(dat))
                 
-                #arrayTest[:,:, sim] = data2
-                
-                #data3[sim,] = data2
-                #self.data[:,:,sim] = UG.getData()
-                
-                """
-                if 'agentInfo' not in globals():
-                    agentInfo = xr.DataArray(data2)
-                    agentInfo.expand_dims('sim')
-                else:
-                    xr.concat((agentInfo, data2), dim='sim')
-                """
-                if sim == 0:
-                    simData = xr.DataArray(data = data2, dims = ('Rounds', 'Agent')).expand_dims('Sim')
+            gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}_{6}.csv".format(agentCount, simulations, rounds, explore, str(proportional), str(randomPlay), g), encoding='utf-8')
+            
+            
+                #if sim == 0:
+                #    simData = UG.dataTest
+                #    print("This is simdata: \n{0}".format(simData))
                     
-                else:
-                    simData = xr.concat([simData, xr.DataArray(data = data2, dims = ('Rounds', 'Agent')).expand_dims('Sim')], dim='Sim')
+                #else:
+                #    simData = xr.concat([simData, xr.DataArray(data = data2, dims = ('Rounds', 'Agent')).expand_dims('Sim')], dim='Sim')            
             
-            
-            if graphType.index(g) == 0:
-                gData = xr.DataArray(data = simData).expand_dims('Graph')
                 
-            else:
-                gData = xr.concat([gData, xr.DataArray(data = simData).expand_dims('Graph')], dim='Graph')
+            #else:
+            #    gData = xr.concat([gData, xr.DataArray(data = simData).expand_dims('Graph')], dim='Graph')
                 
-        gData = gData.assign_coords({'Rounds' : range(rounds), 'Agent' : agentList, 'Sim': range(simulations), 'Graph' : graphType})#.transpose(..., 'Agent')
+        #gData = gData.assign_coords({'Rounds' : range(rounds), 'Agent' : agentList, 'Sim': range(simulations), 'Graph' : graphType})#.transpose(..., 'Agent')
         
-        return(gData)
+        #print("\n this is dataTesting: \n{0}".format(dataTesting))
+        #testFrame = pd.DataFrame(data=dataTesting, index = range(rounds), columns = indexGame)
+        #print("\n this is testFrame: \n{0}".format(testFrame))
+        
+        #return(testFrame)
 
 # =============================================================================
 # HYPERPARAM
 # =============================================================================
 
-simulations = 10
-rounds = 10
-agentCount = 15
+simulations = 1
+rounds = 5
+agentCount = 14
 edgeDegree = 4
 
 
 explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
+
 
 
 # =============================================================================
@@ -691,21 +699,22 @@ testing = False
 demo = False
 showGraph = False
 
-agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
+#agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
 
+#index = pd.MultiIndex.from_product((range(simulations), agentList), names=['Simulation', 'Agent'])
 
-
-#dataMI = pd.DataFrame(np.zeros((40)),index = datadx)#np.random.randn(len(datadx), 1), index = datadx)
-data2 = pd.DataFrame(index=range(rounds), columns = agentList)       # just been messing around with this. REMEMBER .ILOC()
-
-
-#pd.DataFrame(index=range(simulations)) #can't get Data2 into Data3.
+#dataSet = pd.DataFrame(index=range(rounds), columns = index)
+#print(dataSet[0:5][0]) #dataset.loc[row, sim][agent]
 
 gg = Graph()
 gg.createGraph()
+graphType = ['Watts-Strogatz', 'Barabasi-Albert']
 
-game = Simulation()
-blaTest = game.run()#.to_dataframe('Agent') # xr.DataArray(data=game.run(), coords={'Rounds' : range(rounds), 'Agent' : agentList, 'Sim': range(simulations)})
+jimList = Simulation().run() #game = Simulation().run()
+#game.run()
 
-# ideas: graph generator for e.g. difference in SP, CC, various graphs (random, regular well-mixed etc)
+settings = [simulations, rounds, agentCount, edgeDegree, explore, proportional, randomPlay]
 
+# add exploration rate, proportional and randomPlay to filename
+for g in graphType:
+    exec('finalDat_{0} = pd.read_csv("Data/gameData_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}_{7}.csv" , encoding="utf-8", header = [0,1])'.format(str(g)[0], agentCount, simulations, rounds, explore, str(proportional), str(randomPlay), g))
