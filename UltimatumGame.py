@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import random
+import itertools
 
 
 class Agent:
@@ -56,9 +57,6 @@ class Agent:
         self.revenue.append(payoff)
         if payoff > 0:
             self.successes += 1
-            
-        self.data.append((partner, payoff, role))        
-        
         
     def adapt(self, graph):                                    # first check highest value, after update strategy
         
@@ -124,10 +122,15 @@ class Agent:
             self.strategy = self.exemplar.strategy
             print("{0} exploiting strategy from {1}: {2}".format(self, self.exemplar, self.strategy))
 
-          
+    def storeData(self):
+        self.data.append([self.strategy['offer'], self.strategy['accept'], np.sum(self.revenue)])
+        
+    def shareData(self):
+        return(self.data)
+    
     def shareStats(self):
-        stats = [self.strategy['offer'], self.strategy['accept'], np.mean(self.revenue)] # share stats every round
-        #print("this is self.data for {0}: {1}".format(self, self.data))
+        stats = [self.strategy['offer'], self.strategy['accept'], np.sum(self.revenue)] # share stats every round #or use mean?
+        
         return(stats)
     
     
@@ -281,85 +284,14 @@ class Graph:
         
         return((np.mean(SPtotal), SPtotal))
         
-    
-    def barabal(n, m, seed=None):
-        """Returns a random graph according to the Barabási–Albert preferential
-        attachment model.
-        A graph of $n$ nodes is grown by attaching new nodes each with $m$
-        edges that are preferentially attached to existing nodes with high degree.
-        Parameters
-        ----------
-        n : int
-            Number of nodes
-        m : int
-            Number of edges to attach from a new node to existing nodes
-        seed : integer, random_state, or None (default)
-            Indicator of random number generation state.
-            See :ref:`Randomness<randomness>`.
-        Returns
-        -------
-        G : Graph
-        Raises
-        ------
-        NetworkXError
-            If `m` does not satisfy ``1 <= m < n``.
-        References
-        ----------
-        .. [1] A. L. Barabási and R. Albert "Emergence of scaling in
-           random networks", Science 286, pp 509-512, 1999.
-        """
-    
-        if m < 1 or m >= n:
-            raise nx.NetworkXError(f"Barabási–Albert network must have m >= 1 and m < n, m = {m}, n = {n}")
-    
-        # Add m initial nodes (m0 in barabasi-speak)
-        G = nx.empty_graph(m)
-        # Target nodes for new edges
-        targets = list(range(m))
-        # List of existing nodes, with nodes repeated once for each adjacent edge
-        repeated_nodes = []
-        # Start adding the other n-m nodes. The first node is m.
-        source = m
-        while source < n:
-            # Add edges to m nodes from the source.
-            G.add_edges_from(zip([source] * m, targets))
-            # Add one node to the list for each new edge just created.
-            repeated_nodes.extend(targets)
-            # And the new node "source" has m edges to add to the list.
-            repeated_nodes.extend([source] * m)
-            # Now choose m unique nodes from the existing nodes
-            # Pick uniformly from repeated_nodes (preferential attachment)
-            targets = nx._random_subset(repeated_nodes, m, seed)
-            source += 1
-            
-        return G
 
-    """
-    def _random_barabal(seq, m, rng, g):
-        targets = set()
-    
-        while len(targets) < m:
-            x = rng.choice(seq, p = _pref_attach(seq))
-            targets.add(x)
-            
-        return targets
-    
-    def _pref_attach(seq, g):
-        prefList = []
-        
-        for node in g.nodes():
-            p = (g.degree[node]/g.size)
-            print("node {0} with preference probability {1}".format(g.nodes[node], p))
-            prefList.append(p)
-        return prefList
-    """
     
        
 class Population:
     
     def __init__(self, graph):
         
-        self.agents = set()
+        self.agents = []#set()
         self.graph = graph
         
         """
@@ -374,7 +306,7 @@ class Population:
         while birth < agentCount:
             agent = Agent(self.graph)
             agent.introduce()
-            self.agents.add(agent)
+            self.agents.append(agent)
             birth += 1
             
             
@@ -457,17 +389,19 @@ class ultimatumGame:
         responder.budgeting(payRes, "responder", proposer)
                 
     
-    def play(self, sim, dataSet):                              # selection of players and structure surrounding an interaction
+    def play(self, sim):                              # selection of players and structure surrounding an interaction
         
         self.population.populate()
         
         struct = self.population.graph
-        #datalist = []
+        datalist = []
+        datatemp = []
         
         #self.dataTest = pd.DataFrame(index=range(rounds), columns=[np.array(["Agent %d" % agent for agent in range(0,agentCount)])], dtype=object)
             
         for n in range(rounds):
             print("\n=== round {0} ===".format(n+1))
+            datatemp = []
             
             for edge in struct.edges:
                 proposers = random.sample(edge, 2)
@@ -499,10 +433,7 @@ class ultimatumGame:
             print("\n")
             
             for agent in self.population.agents:     
-                # row = round, col = agent, input = all stats from each agent in that round
-
-                dataSet.loc[n, sim][agent.name] = agent.shareStats()                
-                #datalist.append(agent.shareStats())
+                agent.storeData()
                 
                 self.offerList.append(agent.shareStats()[0])
                 self.acceptList.append(agent.shareStats()[1])
@@ -510,7 +441,7 @@ class ultimatumGame:
                 
                 if n != (rounds - 1):
                     agent.updateStrategy(n)
-            
+                        
             self.data[n, 0], self.data[n, 1] = np.mean(self.offerList), np.var(self.offerList)
             self.data[n, 2], self.data[n, 3]  = np.mean(self.acceptList), np.var(self.acceptList)
             self.data[n, 4], self.data[n, 5] = np.mean(self.payList), np.var(self.payList)
@@ -518,6 +449,9 @@ class ultimatumGame:
             self.offerList.clear()
             self.acceptList.clear()
             self.payList.clear()
+        
+        for agent in self.population.agents:
+            datalist.append(agent.shareData())
         
         if testing:           
             for agent in self.population.agents:
@@ -527,8 +461,8 @@ class ultimatumGame:
         # self.plotting.offerPlot(self.data)
         # self.plotting.acceptPlot(self.data)
         # self.plotting.payPlot(self.data)
-                
-        #return(datalist)
+
+        return(datalist)
     
 class Plot:
     
@@ -613,12 +547,14 @@ class Simulation:
     def run(self):
         #graphType = ['Watts-Strogatz', 'Barabasi-Albert']
         
-        agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
-        indexGame = pd.MultiIndex.from_product((range(simulations), agentList), names=['Simulation', 'Agent'])
+        indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
+        graphList = []
+        graphoListo = []
+        #gameData = []
         
         for g in graphType:
             
-            gameData = pd.DataFrame(index=range(rounds), columns = indexGame)
+            simList = []
             
             for sim in range(simulations):
                 print("\n=== Commencing Simulation {0} ===\n".format(sim))
@@ -638,22 +574,41 @@ class Simulation:
                 
                 print("characteristics of {0}({1}): \n{2}".format(g, sim, gg.graphData[g][sim]))
                 
-                
                 #indexGraph = pd.MultiIndex.from_product((sim, list(graph.edges)), names=['Simulation', 'Agent'])
                 #tempData = pd.DataFrame(index = range(rounds), columns = indexGraph)
                 
                 print("this is graph.edges: {0}".format(graph.edges))
                 
                 UG = ultimatumGame(graph)
-                UG.play(sim, gameData)
+                simDat = UG.play(sim)
+
+                simList.append(simDat)
+                graphoListo.append(simDat)
+                #this part is for testing with transpose()
+                simDat2 = list(map(list, zip(*simDat))) #itertools.chain.from_iterable(simDat)#list(map(list, zip(*simDat)))
+                test = pd.DataFrame(data=simDat2)#.transpose()
+                test.columns = agentList
+                print(test) #pd.DataFrame(data=simDat2).transpose())#, columns = agentList))
                 
                 UG.population.killAgents()
                 
                 print("This is graph.edges: \n {0}".format(graph.edges))
-                if sim == 4:
-                    print("This is dat for sim 0: {0}".format(dat))
                 
-            gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}_{6}.csv".format(agentCount, simulations, rounds, explore, str(proportional), str(randomPlay), g), encoding='utf-8')
+                #if sim == 4:
+                #    print("This is dat for sim 0: {0}".format(dat))
+            #simList2 = list(map(list, zip(*(itertools.chain.from_iterable(simList)))))
+            graphList.append(simList)
+        
+        graphList = itertools.chain.from_iterable(graphList)
+        graphList2 = list(map(list, zip(*(itertools.chain.from_iterable(graphList)))))
+        
+        graphoListo2 = list(map(list, zip(*(itertools.chain.from_iterable(graphoListo)))))
+        
+        print(pd.DataFrame(data=graphList2, index = range(rounds), columns = indexGame))
+        print(pd.DataFrame(data=graphoListo2, index = range(rounds), columns = indexGame))
+        print(graphList2 == graphoListo2)
+            
+            #gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}_{6}.csv".format(agentCount, simulations, rounds, explore, str(proportional), str(randomPlay), g), encoding='utf-8')
             
             
                 #if sim == 0:
@@ -679,9 +634,9 @@ class Simulation:
 # HYPERPARAM
 # =============================================================================
 
-simulations = 1
+simulations = 2
 rounds = 5
-agentCount = 14
+agentCount = 6
 edgeDegree = 4
 
 
@@ -699,7 +654,7 @@ testing = False
 demo = False
 showGraph = False
 
-#agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
+agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
 
 #index = pd.MultiIndex.from_product((range(simulations), agentList), names=['Simulation', 'Agent'])
 
@@ -708,6 +663,7 @@ showGraph = False
 
 gg = Graph()
 gg.createGraph()
+
 graphType = ['Watts-Strogatz', 'Barabasi-Albert']
 
 jimList = Simulation().run() #game = Simulation().run()
