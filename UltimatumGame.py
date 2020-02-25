@@ -10,9 +10,9 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import xarray as xr
 import random
 import itertools
+import pickle
 
 
 class Agent:
@@ -23,15 +23,15 @@ class Agent:
         self.id = Agent.agentID
         self.name = "Agent " +str(self.id)
         Agent.agentID += 1
-        
+
         self.node = graph[self.id]
         graph.nodes[self.id]['agent'] = self #agentID and nodeID correspond; agent accessible directly through node key
-        #self.neighbours = set()
+        self.neighbours = []
         
         self.strategy = Strategy().randomize()
         self.wallet = []        # wallet keeps track of total revenue
         self.revenue = []       # revenue keeps track of #gains per round
-        self.successes = 0
+        self.successes = []
         self.exemplar = 0
         self.data = []
         
@@ -42,7 +42,11 @@ class Agent:
     
     def __repr__(self):
         return("Agent %d" %self.id)# + "S({0},{1})".format(self.strategy['offer'], self.strategy['accept']))
+    
+    def meetNeighbours(self, graph):
+        print("{0} meeting neighbours! : {1}".format(self, self.neighbours))
         
+        self.neighbours = list(graph.nodes[n]['agent'] for n in graph.neighbors(self.id))
     
     def getStrategy(self):
         return(self.strategy)
@@ -56,7 +60,7 @@ class Agent:
     def budgeting(self, payoff, role, partner):                               # revenue per round
         self.revenue.append(payoff)
         if payoff > 0:
-            self.successes += 1
+            self.successes.append(1)
         
     def adapt(self, graph):                                    # first check highest value, after update strategy
         
@@ -97,46 +101,89 @@ class Agent:
         if testing:
             if payMax[0] > np.sum(self.revenue):
                 print("exemplar of {0} is {1} with {2} over {3}".format(self, self.exemplar, payMax[0], np.sum(self.revenue))) #mean or sum?
-                
-
+        
+        
     def updateStrategy(self, currentRound):
         self.revenue.clear()
         
         if testing:
             print("{0}: Revenue of best neighbour {1}: {2}".format(self, self.exemplar, np.mean(self.exemplar.wallet[currentRound])))
         
-        revSelf = self.wallet[currentRound]
-        revOpp = self.exemplar.wallet[currentRound]
-        
-        changeProb = (revOpp - revSelf) / max(len(self.node), len(self.exemplar.node))
         #print("this is changeprob: {0}, len({3}):{1}, len({4}):{2}".format(round(changeProb, 2), len(self.node), len(self.exemplar.node), self, self.exemplar))
         
         if random.random() < explore:
             self.strategy = Strategy().randomize()
             print("{0} exploring and taking new strategy {1}".format(self, self.strategy))
-            
-        elif proportional:
+        
+        else:
+            self.comparisonMethods(selectionStyle)(currentRound)
+          
+        """
+        elif selectionStyle == 0:
+            self.unconditional(self.exemplar)
+        elif selectionStyle == 1:
+            self.proportional
             if random.random() < changeProb:
                 self.strategy = self.exemplar.strategy
         else:
             self.strategy = self.exemplar.strategy
             print("{0} exploiting strategy from {1}: {2}".format(self, self.exemplar, self.strategy))
+        """    
+
+    def unconditional(self, currentRound):
+        self.strategy = self.exemplar.strategy
+        print("{0} exploiting strategy from {1}: {2}".format(self, self.exemplar, self.strategy))
+
+    
+    def proportional(self, currentRound):
+        revSelf = self.wallet[currentRound]
+        revOpp = self.exemplar.wallet[currentRound]
+        
+        changeProb = (revOpp - revSelf) / max(len(self.node), len(self.exemplar.node))
+        
+        if random.random() < changeProb:
+            self.strategy = self.exemplar.strategy
+
+        
+    def fermi(self, currentRound):
+        model = random.choice(self.neighbours)
+        
+        fitSelf = sum(self.wallet)/sum(self.successes)
+        fitMod = sum(model.wallet)/sum(model.successes)
+        
+        fermiProb = 1 / (1 + np.exp(- selectionIntensity * (fitMod - fitSelf)))
+        
+        if random.random() < fermiProb:
+            self.strategy = model.strategy
+            print("{0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, fitSelf, model, fitMod, fermiProb))
+            print("agent {0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy))
+
+
+    def comparisonMethods(self, argument):
+        switcher = {
+        0: self.unconditional,
+        1: self.proportional,
+        2: self.fermi
+        }
+        pairFunc = switcher.get(argument, lambda: "Invalid")
+        return(pairFunc)
+
 
     def storeData(self):
         self.data.append([self.strategy['offer'], self.strategy['accept'], np.sum(self.revenue)])
         
+        
     def shareData(self):
         return(self.data)
     
+    
     def shareStats(self):
         stats = [self.strategy['offer'], self.strategy['accept'], np.sum(self.revenue)] # share stats every round #or use mean?
-        
         return(stats)
     
-    
+
     def kill(self):
         del self
-
 
 
 class Graph:
@@ -151,31 +198,30 @@ class Graph:
         m_step = np.linspace(1, agentCount, simulations, endpoint=False)
         p_step = np.linspace(0, 0.6, simulations)
         
-        #print(plist)
-        
         for i in range(simulations):
             
             p = p_step[i]
-            #step = (agentCount-1) / simulations
+
             if int(m_step[i]) < agentCount:
                 m = int(m_step[i])
             else:
                 m = (agentCount-1)
-            #print("M for barabasi-Albert: {0}".format(m))
             
             # --> nx.extended_barabasi_albert_graph?
             SFN = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
             SWN = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p) # small-world network characterised by low 
             
-            #SWN = nx.newman_watts_strogatz_graph(agentCount, edgeDegree, p)
-            #while not nx.is_connected(SWN):
-            #    SWN = nx.newman_watts_strogatz_graph(agentCount, edgeDegree, p)
+            
             self.char1.append(Graph.graphCharacteristics(SWN))
             self.char2.append(Graph.graphCharacteristics(SFN))
             
-            nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}".format(i))
-            nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}".format(i))
-
+            #nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}".format(i))
+            #nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}".format(i))
+            #nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)))
+            #nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)))
+            nx.write_gpickle(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}.gpickle".format(i, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)))
+            nx.write_gpickle(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}.gpickle".format(i, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)))
+            
             
 # =============================================================================
 #            can this part directly below delet plos is for testng
@@ -192,24 +238,17 @@ class Graph:
             
         self.graphData['Watts-Strogatz'], self.graphData['Barabasi-Albert'] = self.char1, self.char2
         
-        for key in self.graphData.keys():
-            if key == 'Watts-Strogatz':
-                x = p_step
-                xlab = 'probability of rewiring random edge'
-            if key == 'Barabasi-Albert':
-                x = m_step
-                xlab = 'degree for each new agent'
-            Plot().measurePlot(key, x, gg.graphData, xlab)
+        if showGraph:
+            for key in self.graphData.keys():
+                if key == 'Watts-Strogatz':
+                    x = p_step
+                    xlab = 'probability of rewiring random edge'
+                if key == 'Barabasi-Albert':
+                    x = m_step
+                    xlab = 'degree for each new agent'
+                Plot().measurePlot(key, x, gg.graphData, xlab)
 
-        
-        #print("characteristics of Watts-Strogatz (SWN) {0}: \n{1}".format(i,Graph.graphCharacteristics(SWN)))
-        #print("characteristics of Barabasi-Albert (SFN) {0}: \n{1}".format(i,Graph.graphCharacteristics(SFN)))
         print("graphs created")
-        
-        
-        #print(graph.nodes)
-        #nx.write_edgelist(graph, "Graphs/test_graph")
-        
         
         
     def graphCharacteristics(g):
@@ -227,9 +266,7 @@ class Graph:
         #   assortativity (simil of conn in the graph w.r.t. degree or other attr)
         #   average neighbor degree (average size of neighbor-neighborhood for each neighbor j of agent i)
         #   
-    # implement structural measures here! also store graph struct + information here so that graphClass can be run by itself(...)
-    # (...) and OFFER graphs to program instead of necessarily being called by program.
-    
+
     def structuralPower(g):
         SPtotal = list(range(agentCount))#np.empty(agentCount)
         groups = dict()
@@ -242,6 +279,7 @@ class Graph:
                 
         count = 0
         
+        print(groups)
         for node in groups:
             SP = []
             reach = set()
@@ -277,7 +315,6 @@ class Graph:
                     print("length SP: {0}, length nbh: {1}, length reach: {2}".format(len(SP), len(groups[node]), len(reach)))
                     print("this is reach for node {0}: {1}\n".format(node, reach))
             SPtotal[node] = (sum(SP)/len(reach))
-        #print("this is SPtotal: {0} \naverage: {1}".format(SPtotal, np.mean(SPtotal)))
         
         if len(SPtotal) != agentCount:
             raise ValueError("something wrong with your SP.")
@@ -294,13 +331,6 @@ class Population:
         self.agents = []#set()
         self.graph = graph
         
-        """
-        if demo is True:
-            self.graph = nx.Graph()
-        else:
-            self.graph = nx.random_regular_graph(edgeDegree, agentCount, seed=None)
-        """
-        
     def populate(self):
         birth = 0
         while birth < agentCount:
@@ -309,13 +339,17 @@ class Population:
             self.agents.append(agent)
             birth += 1
             
+        for agent in self.agents:
+            agent.meetNeighbours(self.graph)
+            
             
     def killAgents(self):
         Agent.agentID = 0
+        
         for agent in self.agents:
             agent.kill()
-            
-                        
+
+
         #for agent in self.agents:
         #    print("this is the amount of neighbours for agent {0}: {1}".format(agent.id, len(agent.node)))
         #nx.draw(self.graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
@@ -331,17 +365,13 @@ class ultimatumGame:
         
         self.data = np.zeros((rounds, 6), dtype=float)
         
-        #self.data2 = pd.DataFrame(index=range(rounds))
         self.offerList = []
         self.acceptList = []
         self.payList = []
         
         self.graph = self.population.graph
         
-        self.plotting = Plot()
-
-        #data2 = str(self.population.agents)
-        
+        self.plotting = Plot()        
         
         if edgeDegree >= agentCount:
             raise ValueError("Amount of edges per node cannot be equal to or greater than amount of agents")
@@ -350,12 +380,12 @@ class ultimatumGame:
     def getData(self):
         return(self.data)        
     
-        
+    
     def game(self, proposer, responder, currentRound):         # the actual interaction between prop and resp
         if testing:
             print("Ultimatum Game between (proposer) {0} and (responder) {1}:"
                   .format(proposer, responder))
-            print("P {0} strategy {1} and R {2} strategy {3}".format(proposer, proposer.strategy, responder, responder.strategy))
+            print("\tP {0} strategy {1} and R {2} strategy {3}".format(proposer, proposer.strategy, responder, responder.strategy))
             
         offer = proposer.getStrategy()['offer']
         accept = responder.getStrategy()['accept']
@@ -382,9 +412,7 @@ class ultimatumGame:
                       .format(offer, proposer, accept, responder))
         
         self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)] = [offer, accept, success]
-        
-        #print("edgedata (offer, accept, success): " +str(self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)]))
-        
+                
         proposer.budgeting(payPro, "proposer", responder)
         responder.budgeting(payRes, "responder", proposer)
                 
@@ -395,13 +423,10 @@ class ultimatumGame:
         
         struct = self.population.graph
         datalist = []
-        datatemp = []
-        
-        #self.dataTest = pd.DataFrame(index=range(rounds), columns=[np.array(["Agent %d" % agent for agent in range(0,agentCount)])], dtype=object)
-            
+        edgedata = []
+                    
         for n in range(rounds):
             print("\n=== round {0} ===".format(n+1))
-            datatemp = []
             
             for edge in struct.edges:
                 proposers = random.sample(edge, 2)
@@ -452,23 +477,29 @@ class ultimatumGame:
         
         for agent in self.population.agents:
             datalist.append(agent.shareData())
+            
+        for edge in struct.edges:
+            edgedata.append(list(struct.get_edge_data(*edge).values()))
         
+        print("this is edgedata: \n{0}".format(edgedata))
+
         if testing:           
             for agent in self.population.agents:
                 print("\ntotal wallet for {0}: {1}".format(agent, agent.wallet))
-                print("final payoff for {0} is: {1}, average: {2}".format(agent, round(np.sum(agent.wallet),4), round((np.sum(agent.wallet)/agent.successes), 4)))
-        
+                print("final payoff for {0} is: {1}, average: {2}".format(agent, round(np.sum(agent.wallet),4), round((np.sum(agent.wallet)/np.sum(agent.successes)), 4)))
+
         # self.plotting.offerPlot(self.data)
         # self.plotting.acceptPlot(self.data)
         # self.plotting.payPlot(self.data)
 
-        return(datalist)
-    
+        return(datalist, edgedata)
+
+
 class Plot:
-    
+
     def __init__(self):
         self.name = "None"
-                
+
     def offerPlot(self, stats):
         
         xval = range(rounds)
@@ -490,6 +521,7 @@ class Plot:
         err = stats[0:rounds,5]
         
         self.doPlot(xval, yval, err, "Average payoff per round")
+        
         
     def measurePlot(self, key, xval, graphCharacteristics, xlab):
         
@@ -515,7 +547,7 @@ class Plot:
         plt.ylim([0,1])
         plt.xlabel('rounds (n)')
         plt.show()
-                  
+               
         
         
 class Strategy:
@@ -533,8 +565,6 @@ class Strategy:
             raise ValueError("randomize screws up accept")
         return(strategy)
     
-
-    
     
 class Simulation:
     
@@ -547,20 +577,23 @@ class Simulation:
     def run(self):
         #graphType = ['Watts-Strogatz', 'Barabasi-Albert']
         
-        indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
-        graphList = []
-        graphoListo = []
-        #gameData = []
+        #indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
+        
+        gameTemp = []
+        edgeTemp = []
+        edgeList = []
         
         for g in graphType:
             
-            simList = []
-            
             for sim in range(simulations):
+
                 print("\n=== Commencing Simulation {0} ===\n".format(sim))
                 
-                read = open("Graphs/{0}{1}".format(g, 'V'+str(sim)), 'rb')
-                graph = nx.read_edgelist(read, nodetype=int)
+                #read = open("Graphs/{0}{1}".format(g, 'V'+str(sim)), 'rb')
+                #read = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}".format(g, sim, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)))
+                # = nx.read_edgelist(read, nodetype=int)
+                read = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)), 'rb')
+                graph = nx.read_gpickle(read)#, node_type=int)
                 
                 
                 if showGraph:
@@ -580,97 +613,94 @@ class Simulation:
                 print("this is graph.edges: {0}".format(graph.edges))
                 
                 UG = ultimatumGame(graph)
-                simDat = UG.play(sim)
+                simData, edgeDat = UG.play(sim)
 
-                simList.append(simDat)
-                graphoListo.append(simDat)
-                #this part is for testing with transpose()
-                simDat2 = list(map(list, zip(*simDat))) #itertools.chain.from_iterable(simDat)#list(map(list, zip(*simDat)))
-                test = pd.DataFrame(data=simDat2)#.transpose()
-                test.columns = agentList
-                print(test) #pd.DataFrame(data=simDat2).transpose())#, columns = agentList))
+                gameTemp.append(simData)
+                edgeTemp.append(edgeDat)                
+                
+                nx.write_gpickle(graph, "Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)))
+                
+                with open("Data/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}.pickle".format(g, sim, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)), 'wb') as f:
+                    pickle.dump(UG.population.agents, f)
                 
                 UG.population.killAgents()
+
+                #edgeTemp2 = list(map(list, zip(*itertools.chain.from_iterable(edgeTemp))))
                 
-                print("This is graph.edges: \n {0}".format(graph.edges))
+                for edge in list(graph.edges):
+                    edgeList.append((g, sim, str(edge)))
                 
-                #if sim == 4:
-                #    print("This is dat for sim 0: {0}".format(dat))
-            #simList2 = list(map(list, zip(*(itertools.chain.from_iterable(simList)))))
-            graphList.append(simList)
+                #print("This is g.edges DF: \n {0}".format(pd.DataFrame(data=edgeTemp2, index = range(rounds), columns = edgeList)))
+        #print(edgeList)
+        indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
+        indexEdge = pd.MultiIndex.from_tuples(edgeList, names=['Graph', 'Simulation', 'Edge'])
         
-        graphList = itertools.chain.from_iterable(graphList)
-        graphList2 = list(map(list, zip(*(itertools.chain.from_iterable(graphList)))))
+        gameTemp = list(map(list, zip(*(itertools.chain.from_iterable(gameTemp)))))
+        edgeTemp = list(map(list, zip(*(itertools.chain.from_iterable(edgeTemp)))))
+
+        #print(edgeList)
         
-        graphoListo2 = list(map(list, zip(*(itertools.chain.from_iterable(graphoListo)))))
+        gameData = pd.DataFrame(data=gameTemp, index = range(rounds), columns = indexGame)
+        #print(gameData)
         
-        print(pd.DataFrame(data=graphList2, index = range(rounds), columns = indexGame))
-        print(pd.DataFrame(data=graphoListo2, index = range(rounds), columns = indexGame))
-        print(graphList2 == graphoListo2)
+        edgeData = pd.DataFrame(data=edgeTemp, index = range(rounds), columns = indexEdge)
+        #print(edgeData)
             
-            #gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}_{6}.csv".format(agentCount, simulations, rounds, explore, str(proportional), str(randomPlay), g), encoding='utf-8')
-            
-            
-                #if sim == 0:
-                #    simData = UG.dataTest
-                #    print("This is simdata: \n{0}".format(simData))
-                    
-                #else:
-                #    simData = xr.concat([simData, xr.DataArray(data = data2, dims = ('Rounds', 'Agent')).expand_dims('Sim')], dim='Sim')            
-            
-                
-            #else:
-            #    gData = xr.concat([gData, xr.DataArray(data = simData).expand_dims('Graph')], dim='Graph')
-                
-        #gData = gData.assign_coords({'Rounds' : range(rounds), 'Agent' : agentList, 'Sim': range(simulations), 'Graph' : graphType})#.transpose(..., 'Agent')
-        
-        #print("\n this is dataTesting: \n{0}".format(dataTesting))
-        #testFrame = pd.DataFrame(data=dataTesting, index = range(rounds), columns = indexGame)
-        #print("\n this is testFrame: \n{0}".format(testFrame))
-        
-        #return(testFrame)
+        gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}.csv".format(agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)), encoding='utf-8')
+        edgeData.to_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}.csv".format(agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)), encoding='utf-8')
 
-# =============================================================================
-# HYPERPARAM
-# =============================================================================
-
-simulations = 2
-rounds = 5
-agentCount = 6
-edgeDegree = 4
-
-
-explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
-
-
-
-# =============================================================================
-# GAME SETTINGS
-# =============================================================================
-proportional = True
-randomPlay = True
-
-testing = False
-demo = False
-showGraph = False
-
-agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
-
-#index = pd.MultiIndex.from_product((range(simulations), agentList), names=['Simulation', 'Agent'])
-
-#dataSet = pd.DataFrame(index=range(rounds), columns = index)
-#print(dataSet[0:5][0]) #dataset.loc[row, sim][agent]
-
-gg = Graph()
-gg.createGraph()
-
-graphType = ['Watts-Strogatz', 'Barabasi-Albert']
-
-jimList = Simulation().run() #game = Simulation().run()
-#game.run()
-
-settings = [simulations, rounds, agentCount, edgeDegree, explore, proportional, randomPlay]
-
-# add exploration rate, proportional and randomPlay to filename
-for g in graphType:
-    exec('finalDat_{0} = pd.read_csv("Data/gameData_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}_{7}.csv" , encoding="utf-8", header = [0,1])'.format(str(g)[0], agentCount, simulations, rounds, explore, str(proportional), str(randomPlay), g))
+"""
+def comparisonMethods(argument):
+    switcher = {
+    0: unconditional,
+    1: proportional,
+    2: fermi
+    }
+    pairFunc = switcher.get(argument, lambda: "Invalid")
+    return(pairFunc)
+"""
+  
+if __name__ == '__main__':
+    # =============================================================================
+    # HYPERPARAM
+    # =============================================================================
+    
+    simulations = 4
+    rounds = 100
+    agentCount = 12
+    edgeDegree = 3
+    
+    
+    explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
+    
+    
+    # =============================================================================
+    # GAME SETTINGS
+    # =============================================================================
+    
+    selectionStyle = 0 # 0: Unconditional, 1: Proportional, 2: Fermi-equation
+    selectionIntensity = 10
+    proportional = True
+    randomPlay = True
+    
+    testing = False
+    demo = False
+    showGraph = False
+    
+    agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
+    
+    gg = Graph()
+    gg.createGraph()
+    
+    graphType = ['Watts-Strogatz', 'Barabasi-Albert']
+    
+    jimList = Simulation().run()    #game = Simulation().run()
+                                    #game.run()
+    
+    settings = [simulations, rounds, agentCount, edgeDegree, explore, proportional, randomPlay]
+    
+    # add exploration rate, proportional and randomPlay to filename
+    exec('finalDat = pd.read_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}.csv" , encoding="utf-8", header = [0,1])'.format(agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)))
+    
+    #for g in graphType:
+        #exec('finalDat_{0} = pd.read_csv("Data/gameData_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}.csv" , encoding="utf-8", header = [0,1])'.format(str(g)[0], agentCount, simulations, rounds, explore, str(proportional), str(randomPlay), g))
