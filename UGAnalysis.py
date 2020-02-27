@@ -23,27 +23,36 @@ agentList = []
 set_self = True
 
 if set_self:
-    simulations = 40
-    rounds = 100
+    simulations = 40#4
+    rounds = 100#20
     agentCount = 12
     edgeDegree = 5
     
-    explore = 0.4
+    selectionStyle = "Fermi"      # 0: Unconditional, 1: Proportional, 2: Fermi-equation
+    selectionIntensity = 10 # the bèta in the Fermi-equation
     
-    proportional = True
+    explore = 0.2       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
+    
     randomPlay = True
     
-    showGraph = False
-    focus = None
+    testCase = False
+
+if testCase:
+    graphType = ['Testcase']
 
 #else:
 #    simulations, rounds, agentCount, edgeDegree, explore, proportional, randomPlay = settings
     
 g = "Barabasi-Albert"
-sim = 30
+sim = 12
 
-with open("Data/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}.pickle"
-          .format(g, sim, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)), 'rb') as f:
+if testCase:
+    g = 'testCase'
+    sim = 3
+    agentCount = 2
+    edgeDegree = 1
+
+with open("Data/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.pickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), 'rb') as f:
     Agents = pickle.load(f)
 
 for agent in Agents:
@@ -53,28 +62,18 @@ for agent in Agents:
 
 finalDat = []
 
+if testCase:
+    gameAna = pd.read_csv("Data/gameTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding='utf-8', header = [0,1,2])
+    edgeAna = pd.read_csv("Data/edgeTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding='utf-8', header = [0,1,2])
+else:
+    gameAna = pd.read_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding="utf-8", header = [0,1,2])
+    edgeAna = pd.read_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding='utf-8', header = [0,1,2])
 
-gameAna = pd.read_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}.csv".format(agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)), encoding="utf-8", header = [0,1,2])
-edgeAna = pd.read_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}.csv".format(agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)), encoding='utf-8', header = [0,1,2])
+print(gameAna)
+#print(edgeAna)
 
-
-print(edgeAna)
-"""
-for g in graphType:
-
-    for sim in range(simulations):
-
-        read = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)), 'rb')
-        graph = nx.read_gpickle(read)#, nodetype = int)
-
-        if showGraph:
-            nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
-            plt.title('{0} (simulation {1}/{2})'.format(g, sim+1, simulations))
-            plt.show()
-"""
-
-readFocus = open("Graphs/{0}V10_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}.gpickle"
-                 .format(g, sim, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)), 'rb') #{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}".format(g, sim, agentCount, simulations, rounds, explore, str(proportional), str(randomPlay)))
+readFocus = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}.gpickle"
+                 .format(g, sim, agentCount, simulations, rounds, explore, str(randomPlay)), 'rb') #{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}".format(g, sim, agentCount, simulations, rounds, explore, str(randomPlay)))
 graphFocus = nx.read_gpickle(readFocus)#, nodetype=int)
 
 
@@ -82,48 +81,120 @@ graphFocus = nx.read_gpickle(readFocus)#, nodetype=int)
 graph = graphFocus
 positions = nx.spring_layout(graph)
 
-# Animation function
+# =============================================================================
+# # Animation function
+# =============================================================================
 
-#def color_calc():
-#    for n in range(rounds):
 
-def size_calc(i):
+
+def safe_div(x, y):
+    return 0 if y == 0 else x / y
+
+
+
+def stratcalc():
+    avgOffer = []#, avgAccept, avgSucc, strategies = ([], ) * 4
+    avgAccept = []
+    avgSucc = []
+    
+    edgeCount = len(graph.edges)
+    
+    for rnd in range(rounds):
+        totSucc = []
+        stratlist = pd.eval(gameAna[g][str(sim)].loc[rnd, :].values)
+        offers, accepts = zip(*[strat[:-1] for strat in stratlist])
+    
+        for i in range(2):
+            totSucc.extend([dat[i][2] for dat in pd.eval(edgeAna[g][str(sim)].loc[rnd, :].values)])
+            # pd.eval(edgeAna[g][str(sim)].loc[0, :].values)[0,1,2] (from 1st edge 2nd list 3rd value)
+        strategies.append
+        
+        y1 = np.sum(offers)/agentCount # must be set of
+        y2 = np.sum(accepts)/agentCount
+        y3 = np.sum(totSucc)/(edgeCount*2) #every edge is played twice
+        
+        avgOffer.append(y1)
+        avgAccept.append(y2)
+        avgSucc.append(y3)
+
+
+    return(avgOffer, avgAccept, avgSucc, stratlist)
+    
+offerlist, acceptlist, successlist, stratlist = stratcalc()
+#print(successlist)
+#stratcalc()
+
+def heatPrep():
+    stratx, straty = [np.linspace(0.1, 0.9, 9)] * 2
+    
+    xgrid, ygrid = np.meshgrid(stratx, straty)
+    
+    stratgrid = np.vstack(([xgrid.T], [ygrid.T])).T
+
+
+def stratTally(currentRound):
+    stratlist = pd.eval(gameAna[g][str(sim)].loc[currentRound, :].values)
+    
+    for agent in range(agentCount):
+        pq = tuple(stratlist[agent][:-1])
+
+    # idea: check for occurrence pq in stratgrid, construct an
+    # nxn data-matrix consisting of counts of each strategy (or cell)
+    # in stratgrid, maintain values from preceding rounds
+
+def size_calc(currentRound):
     paylist = []
-    size = 1200
+    size = 1100
     dev = 0.5
     size_map = [size] * len(agentList)
     
     for agent in Agents:
         #print("Payoff for {0}: {1}".format(agent, agent.shareData()[i][2]))
-        paylist.append((agent.shareData()[i][2]))
-    
-    roundMax = max(paylist)#, key = lambda payoff : payoff[1])
-    
+        paylist.append((agent.shareData()[currentRound][2]))
+
     mean = np.mean(paylist)
     stdev = np.std(paylist)
     
     for val in paylist:
-        newsize = round(size + ((size*dev) * ((val-mean) / stdev)), 0)
+        newsize = round(size + ((size*dev) * safe_div((val-mean), stdev)), 0)
         size_map[paylist.index(val)] = newsize
-    
-    #print(paylist)
-    #print("roundMax: {0}".format(roundMax))
-    #print("before: %s" % size_map)
-    #print("after: %s" % size_map)
         
     return(size_map)
 
-#size_calc(5)
 
-def nodeCol_calc(i):
+
+def nodeCol_calc(currentRound):
+    # agents increase in colour as their distance to equal splits decreases relative to others
+    color = []
+    #color_map = []
+    penalty = 0.8
+    stratlist = pd.eval(gameAna[g][str(sim)].loc[currentRound, :].values)
+    
+    for strat in stratlist:
+        p = strat[0]
+        q = strat[1]
+        # values for both p and q experience a quadratic decline as they strive further from 0.5
+        p_grad = 1 - (penalty*(abs(0.5-p))**2)
+        q_grad = 1 - (penalty*(abs(0.5-q))**2)
+        # difference in p and q amplified
+        color.append((p_grad*q_grad)**3)
+        
+        #cmap = plt.cm.get_cmap('RdYlGn')
+        #for val in color:
+        #    color_map.append(cmap(val))
+        
+    return(color)#_map)
+        
+    # agents increase in colour as their overall wallet sum increases relative to others
+    """
     walletlist = []
     color_map = walletlist
     
     stratlist = []
     for agent in Agents:
-        walletlist.append(np.sum(agent.wallet[:i+1]))
-        stratlist.append(agent.shareData()[i])
-    print(stratlist)
+        walletlist.append(np.sum(agent.wallet[:currentRound+1]))
+        stratlist.append(agent.shareData()[currentRound])
+    #print(stratlist)
     
     mean = np.mean(walletlist)
     stdev = np.std(walletlist)
@@ -131,81 +202,48 @@ def nodeCol_calc(i):
     for val in color_map:
         z = round((val-mean)/stdev, 2)
         color_map[color_map.index(val)] = z #round(mean + ((mean*stdev) * ((val-mean) / stdev)), 0)
-    #print(walletlist)
     return(color_map)
-
-size_calc(5)
-nodeCol_calc(5)
-
-for i in range(20):
-    nodeCol_calc(i)
-
-def animate(i):
-    plt.clf()
-    nx.draw(graph, pos = positions, node_color = nodeCol_calc(i), alpha = 0.53, node_size = size_calc(i), width = 1.5, cmap = plt.cm.seismic, with_labels=True, font_size = 30)
-    # node_color=[random.choice(color_map) for j in range(len(agentList))]
-    # add _r to color to get reverse colormap
-
-#nx.draw(graph)
-fig = plt.figure(figsize=(10,8))
-anim = ani.FuncAnimation(fig, animate, frames = rounds, interval = 200, repeat_delay = 2000)#, blit=True)
-
+    """
+    
+#size_calc(5)
+#nodeCol_calc(0)
 
 #for i in range(20):
 #    nodeCol_calc(i)
 
 
-"""
-for edge in graphFocus.edges:
-    print(list(graphFocus.get_edge_data(*edge).values()))
+fig, [[ax1, ax2], [ax3, ax4]] = plt.subplots(2, 2, figsize=(28,13))#, 'ncols':(2)}) #plt.figure(figsize=(18,8))
+# maybe change ratio for subplot columns
+# make histogram depicting best agents
+gs = ax1.get_gridspec()
+ax1.remove()
+ax3.remove()
+axgraph = fig.add_subplot(gs[:2, 0])
+
+xval = np.arange(0, rounds, 1)
+offerline, = ax2.plot(xval, offerlist, color='red', label = 'average p', alpha=0.54)
+acceptline, = ax2.plot(xval, acceptlist, color='midnightblue', label = 'average q', alpha=0.54)
+successline, = ax2.plot(xval, successlist, color='lime', label = 'ratio successes', alpha=0.54)
+lines = [offerline, acceptline, successline]
+
+ax2.set_ylim([0, 1])
+ax2.set_xticks(np.arange(0,rounds,step=5))
+ax2.legend()
+
+def animate(currentRound, xval, offerlist, acceptlist, successlist, lines):
     
-print("\n")
+    axgraph.clear()
+    nx.draw(graph, pos = positions, ax=axgraph, node_color = nodeCol_calc(currentRound), alpha = 0.53, node_size = size_calc(currentRound), cmap = plt.cm.RdYlGn, width = 1.5, with_labels=True, font_size = 30)
+    lines[0].set_data(xval[:currentRound], offerlist[:currentRound])
+    lines[1].set_data(xval[:currentRound], acceptlist[:currentRound])
+    lines[2].set_data(xval[:currentRound], successlist[:currentRound])
+    return(lines,)
+    # node_color=[random.choice(color_map) for j in range(len(agentList))]
+    # add _r to color to get reverse colormap
+    
+anim = ani.FuncAnimation(fig, animate, fargs = [xval, offerlist, acceptlist, successlist, lines], frames = rounds, interval = 100, repeat_delay = 200)#, blit=True)
+#plt.show()
 
-for node in graphFocus.nodes:
-    print(graphFocus.nodes[node]['agent'])
-    print(graphFocus.nodes[node]['agent'].shareData())
-    #print(nx.get_node_attributes(graphFocus, 'agent'))
-"""
-
-        
 # either use gameAna['graphtype']['sim']['agent(s)'][row:row+1] or gameAna[loc], see https://stackoverflow.com/questions/53927460/select-rows-in-pandas-multiindex-dataframe
-
-        
-        
-
-"""
-def update_line(num, data, line):
-    line.set_data(data[..., :num])
-    return line,
-
-fig1 = plt.figure()
-
-# Fixing random state for reproducibility
-np.random.seed(19680801)
-
-data = np.random.rand(2, 25)
-l, = plt.plot([], [], 'r-')
-plt.xlim(0, 1)
-plt.ylim(0, 1)
-plt.xlabel('x')
-plt.title('test')
-line_ani = ani.FuncAnimation(fig1, update_line, 25, fargs=(data, l),
-                                   interval=50, blit=True)
-
-fig2 = plt.figure()
-
-x = np.arange(-9, 10)
-y = np.arange(-9, 10).reshape(-1, 1)
-base = np.hypot(x, y)
-ims = []
-for add in np.arange(15):
-    ims.append((plt.pcolor(x, y, base + add, norm=plt.Normalize(0, 30)),))
-
-im_ani = ani.ArtistAnimation(fig2, ims, interval=50, repeat_delay=3000,
-                                   blit=True)
-
-plt.show()
-fig2
-"""
 
 #   to change IPython backend, enter %matplotlib followed by 'qt' for animations or 'inline' for plot pane
