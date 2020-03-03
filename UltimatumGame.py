@@ -13,6 +13,7 @@ import pandas as pd
 import random
 import itertools
 import pickle
+import sys
 
 
 class Agent:
@@ -29,6 +30,7 @@ class Agent:
         self.neighbours = []
         
         self.strategy = Strategy().randomize()
+        self.nextstrat = self.strategy
         self.wallet = []        # wallet keeps track of total revenue
         self.revenue = []       # revenue keeps track of #gains per round
         self.successes = []
@@ -73,7 +75,6 @@ class Agent:
             print("\n{0}:".format(self))
                 
         for neighbour in self.neighbours:
-            
             neighRevenue = [np.sum(neighbour.revenue), neighbour]#[np.sum(graph.nodes[n]['agent'].revenue), graph.nodes[n]['agent']]
 
             if testing:
@@ -99,7 +100,7 @@ class Agent:
         
         
     def updateStrategy(self, currentRound):
-        self.revenue.clear()
+        #self.revenue.clear()
         
         if testing:
             print("{0}: Revenue of best neighbour {1}: {2}".format(self, self.exemplar, np.mean(self.exemplar.wallet[currentRound])))
@@ -113,6 +114,7 @@ class Agent:
         else:
             self.comparisonMethods(selectionStyle)(currentRound)
           
+        
         """
         elif selectionStyle == 0:
             self.unconditional(self.exemplar)
@@ -124,32 +126,34 @@ class Agent:
             self.strategy = self.exemplar.strategy
             print("{0} exploiting strategy from {1}: {2}".format(self, self.exemplar, self.strategy))
         """    
-
+    
+    
     def unconditional(self, currentRound):
-        self.strategy = self.exemplar.strategy
+        self.nextstrat = self.exemplar.strategy
         #print("{0} exploiting strategy from {1}: {2}".format(self, self.exemplar, self.strategy))
-
     
     def proportional(self, currentRound):
-        revSelf = self.wallet[currentRound]
-        revOpp = self.exemplar.wallet[currentRound]
+        revSelf = self.wallet[currentRound]/len(self.neighbours)
+        revOpp = self.exemplar.wallet[currentRound]/len(self.exemplar.neighbours)
         
         changeProb = (revOpp - revSelf) / max(len(self.node), len(self.exemplar.node))
         
         if random.random() < changeProb:
-            self.strategy = self.exemplar.strategy
+            self.nextstrat = self.exemplar.strategy
 
         
     def fermi(self, currentRound):
         model = random.choice(self.neighbours)
         
-        fitSelf = sum(self.wallet)/sum(self.successes)
-        fitMod = sum(model.wallet)/sum(model.successes)
+        fitSelf = self.wallet[currentRound]/len(self.neighbours)#/(currentRound+1)#sum(self.successes)
+        fitMod = model.wallet[currentRound]/len(model.neighbours)#/(currentRound+1)#sum(model.successes)
+        
+        print("{2} len self.neighbours: {0} len self.node: {1}".format(len(self.neighbours), len(self.node), self))
         
         fermiProb = 1 / (1 + np.exp(- selectionIntensity * (fitMod - fitSelf)))
         
         if random.random() < fermiProb:
-            self.strategy = model.strategy
+            self.nextstrat = model.strategy
             #print("{0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, fitSelf, model, fitMod, fermiProb))
             #print("{0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy))
 
@@ -162,6 +166,11 @@ class Agent:
         }
         pairFunc = switcher.get(argument, lambda: "Invalid")
         return(pairFunc)
+    
+    
+    def changeStrat(self):
+        self.strategy = self.nextstrat
+        self.revenue.clear()
 
 
     def storeData(self):
@@ -193,7 +202,6 @@ class Graph:
     def createGraph(self):
         
         if testCase:
-            print('hello')
             
             for i in range(simulations):
                 testGraph = nx.complete_graph(agentCount)
@@ -288,7 +296,7 @@ class Graph:
                 
         count = 0
         
-        print(groups)
+        #print(groups)
         for node in groups:
             SP = []
             reach = set()
@@ -317,7 +325,7 @@ class Graph:
             reach.remove(node)
             
             if testing:    
-                if node == 8:
+                if node == agentCount-1:
                     print("\nthese are group members for node {0}: {1}".format(node, neighlist))
                     print("this is group for node {0}: {1}".format(node, groups[node]))
                     print("this is SP for {0}: {1}, {2}".format(node, SP, (sum(SP)/len(reach))))
@@ -395,7 +403,7 @@ class ultimatumGame:
             print("Ultimatum Game between (proposer) {0} and (responder) {1}:"
                   .format(proposer, responder))
             print("\tP {0} strategy {1} and R {2} strategy {3}".format(proposer, proposer.strategy, responder, responder.strategy))
-            
+        
         offer = proposer.getStrategy()['offer']
         accept = responder.getStrategy()['accept']
         
@@ -486,6 +494,9 @@ class ultimatumGame:
                 
                 if n != (rounds - 1):
                     agent.updateStrategy(n)
+            
+            for agent in self.population.agents:
+                agent.changeStrat()
                         
             self.data[n, 0], self.data[n, 1] = np.mean(self.offerList), np.var(self.offerList)
             self.data[n, 2], self.data[n, 3]  = np.mean(self.acceptList), np.var(self.acceptList)
@@ -669,7 +680,9 @@ class Simulation:
         else:
             gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding='utf-8')
             edgeData.to_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding='utf-8')
-            
+        
+        if testCase:
+            print("THIS WAS A TESTCASE. N = {0}, K = {1}, G = {2}".format(agentCount, edgeDegree, graphType))
 
   
 if __name__ == '__main__':
@@ -679,20 +692,20 @@ if __name__ == '__main__':
     
     simulations = 40#4
     rounds = 100#20
-    agentCount = 12
-    edgeDegree = 5
+    agentCount = 6
+    edgeDegree = 4
     # idea: noise around fermi-comp values?
     
     selectionStyle = "Fermi"      # 0: Unconditional, 1: Proportional, 2: Fermi-equation
     selectionIntensity = 10 # the bèta in the Fermi-equation
     
-    explore = 0.2       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
+    explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
     
     testCase = False
     
     if testCase:
-        agentCount = 3
-        edgeDegree = 2
+        agentCount = 2
+        edgeDegree = 1
 
     # =============================================================================
     # GAME SETTINGS
