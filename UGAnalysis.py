@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as ani
 import numpy as np
 import pandas as pd
+import math
 import random
 import pickle
 import itertools
@@ -18,7 +19,10 @@ from ast import literal_eval
 from matplotlib import cm
 from matplotlib import colors
 from UltimatumGame import Agent, Graph
+#import UltimatumGame
 import matplotlib.patches as mpatches
+import cProfile
+import re
 #from collections import OrderedDict
 #from colorspacious import cspace_converter
 
@@ -29,19 +33,29 @@ agentList = []
 set_self = True
 
 if set_self:
-    simulations = 40#4
-    rounds = 100#20
-    agentCount = 6#12
-    edgeDegree = 4#5
+    simulations = 4#4
+    rounds = 1000#20
+    agentCount = 6
+    edgeDegree = 4
+    # idea: noise around fermi-comp values?
     
-    selectionStyle = "Fermi"      # 0: Unconditional, 1: Proportional, 2: Fermi-equation
+    selectionStyle = "unconditional"      # 0: unconditional, 1: proportional, 2: Fermi
     selectionIntensity = 10 # the bèta in the Fermi-equation
     
-    explore = 0.4       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
+    explore = 0.02       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
     
-    randomPlay = True
+    testCase = True
     
-    testCase = False
+
+    # =============================================================================
+    # GAME SETTINGS
+    # =============================================================================
+    
+    #proportional = True
+    randomPlay = False
+    
+    testing = False
+    showGraph = False
 
 if testCase:
     graphType = ['Testcase']
@@ -54,11 +68,10 @@ sim = 28
 
 if testCase:
     g = 'testCase'
-    sim = 3
-    agentCount = 3
-    edgeDegree = 2
-    
-    
+    sim = 1
+    agentCount = 2
+    edgeDegree = 1
+
 
 with open("Data/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.pickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), 'rb') as f:
     Agents = pickle.load(f)
@@ -131,7 +144,6 @@ def stratcalc():
     return(avgOffer, avgAccept, avgSucc, stratlist)
     
 offerlist, acceptlist, successlist, stratlisto = stratcalc()
-
 
 def heatPrep():
     stratx, straty = [np.linspace(0.1, 0.9, 9)] * 2
@@ -217,7 +229,7 @@ def nodeCol_calc():
 
             cmap = cm.get_cmap('RdYlGn')
             norm = colors.Normalize(vmin=0.1, vmax=0.9)
-            
+            """
             # V E R Y _ P A T C H Y 
             if agentCount == 2:
                 ind = 0
@@ -226,13 +238,15 @@ def nodeCol_calc():
                         color[ind, currentRound] = p_grad + q_grad
                     else:
                         ind += 1
-            else:
+            """
+            
+            #else:
                 #print(stratlist)
                 #print(strat)
                 #color[stratlist.tolist().index(strat)] = p_grad + q_grad#((p_grad*q_grad)**3)
                 #color[stratlist.tolist().index(strat)] = list(cmap(norm(p)))
                 
-                coltemp.append(list(cmap(norm(p))))
+            coltemp.append(list(cmap(norm(p))))
                 
                 #construct a color for sub-p and super-p
         color.append(coltemp)    
@@ -302,10 +316,10 @@ def update(currentRound):
     nodecolors = col_array[currentRound]
     edgecolors = edgecouleurs[:, currentRound]
     edgesize = edgewidths[currentRound]
-    dataHeat = datagrid[:,:, currentRound]
+    dataH = datagrid[:,:, currentRound]
     agentStrategies = stratData[currentRound]
     
-    return(nodesizes, nodecolors, edgesize, edgecolors, dataHeat, agentStrategies)
+    return(nodesizes, nodecolors, edgesize, edgecolors, dataH, agentStrategies)
 
 
 gs_kw = dict(width_ratios=[3,1,2], height_ratios=[1.5,2.5])
@@ -332,28 +346,41 @@ ax3.remove()
 axplot = fig.add_subplot(gs[0, 1:3])
 
 xval = np.arange(0, rounds, 1)
-offerline, = axplot.plot(xval, offerlist, color='red', label = 'average p', alpha=0.54)
-acceptline, = axplot.plot(xval, acceptlist, color='midnightblue', label = 'average q', alpha=0.54)
-successline, = axplot.plot(xval, successlist, color='lime', label = 'ratio successes', alpha=0.54)
-lines = [offerline, acceptline, successline]
 
 # used to be ax2
 axplot.set_ylim([0, 1])
 axplot.set_xlim([0, rounds-1])
-axplot.set_xticks(np.append(np.arange(0,rounds,step=5), rounds-1))
+axplot.set_xticks(np.append(np.arange(0,rounds,step=math.floor(rounds/20)), rounds-1))
 fairline = axplot.axhline(0.5, color="black", ls='--', alpha=0.4)
 axplot.yaxis.grid()
+
+#offerline, = axplot.plot(xval, offerlist, color='red', label = 'average p', alpha=0.54)
+#acceptline, = axplot.plot(xval, acceptlist, color='midnightblue', label = 'average q', alpha=0.54)
+#successline, = axplot.plot(xval, successlist, color='lime', label = 'ratio successes', alpha=0.54)
+fakeline, = axplot.plot([], [])
+offerline, = axplot.plot([], [], lw=1, color='red', label = 'average p', alpha=0.54)
+acceptline, = axplot.plot([], [], lw=1, color='midnightblue', label = 'average q', alpha=0.54)
+successline, = axplot.plot([], [], lw=1, color='lime', label = 'ratio successes', alpha=0.54)
+lines = [fakeline, offerline, acceptline, successline]
 axplot.legend()
 
+#"""
 # used to be ax4
 im = ax6.imshow(dataHeat, origin="lower", interpolation="none", vmax=np.amax(datagrid))
 ax6.set_xticklabels(list(np.around(np.linspace(0.0, 0.9, 10), 1)))
 ax6.set_yticklabels(list(np.around(np.linspace(0.0, 0.9, 10), 1)))
-ax6.set_ylabel("offers (p)")
 ax6.set_xlabel("accepts (q)")
+ax6.set_ylabel("offers (p)")
 #gridtext = ax6.text('', ha = "center", va = "center", color='orange', alpha=0.75)
 fig.colorbar(im, ax=ax6, shrink = 0.9)
+#"""
 
+
+#Artists = namedtuple("lines")
+#artists = Artists()
+
+#Writer = ani.writers['ffmpeg']
+#writer = Writer(fps=22, metadata=dict(artist='Me'), bitrate=1800)
 
 """
 def animate(currentRound, xval, offerlist, acceptlist, successlist, lines, im):
@@ -387,33 +414,35 @@ def run_animation():
     
     
     def init():
-        return lines, im
+        #nx.draw_networkx(graph, pos = positions, ax=axgraph, with_labels=True, font_size = 30) #, edge_color = edgecol, edge_cmap = plt.cm.coolwarm, node_color = nodecol, edge_vmin=0, edge_vmax=(2*rounds), alpha = 0.53, node_size = 1200, width = edgesize, with_labels=True, font_size = 30)
+        # used to be ax2
+        lines[0].set_data([],[])
+        lines[1].set_data([],[])
+        lines[2].set_data([],[])
+        lines[3].set_data([],[])
+        return lines[0],# lines[1], lines[2], #[0], lines[1], lines[2])# im
 
 
-    def animate(currentRound, xval, lines):#offerlist, acceptlist, successlist, lines):
+    def animate(currentRound):#, lines):#offerlist, acceptlist, successlist, lines):
         #since edge interaction 2x per round, animate edge round 2x currentRound? (set frames = rounds times two, maintain currentRound by (frames/2))
         nodesiz, nodecol, edgesize, edgecol, dataHeat, agentStrats = update(currentRound)
         #node_colnorm = colors.Normalize(vmin=0.2, vmax=1)
         #edge_colnorm = colors.Normalize(vmin=0, vmax=(2 * rounds)#np.amax(edgecouleurs))
         
-        #print(agentStrats)
         axgraph.clear()
         #edge_color = edgecol, edge_cmap = plt.cm.RdYlGn, 
-        #print('Round {0]: {1}'.format(currentRound, nodecol))
         #node_size = nodesiz, 
-        gdraw = nx.draw_networkx(graph, pos = positions, ax=axgraph, edge_color = edgecol, edge_cmap = plt.cm.coolwarm, node_color = nodecol, edge_vmin=0, edge_vmax=(2*rounds), alpha = 0.53, node_size = 1200, width = edgesize, with_labels=True, font_size = 30)
-        #axgraph.legend(nx.draw_networkx, agentStrats)
-        #axplot.cla()
+        nx.draw_networkx(graph, pos = positions, ax=axgraph, edge_color = edgecol, edge_cmap = plt.cm.coolwarm, node_color = nodecol, edge_vmin=0, edge_vmax=(2*rounds), alpha = 0.53, node_size = 1200, width = edgesize, with_labels=True, font_size = 30)
+        
         #annot.set_annotate("hello")
         axgraph.table(agentStrats, colLabels = agentNames, cellLoc = 'center')#, cellColours = list(nodecol), cmap=plt.cm.RdYlGn)
-        lines[0].set_data(xval[:currentRound], offerlist[:currentRound])
-        lines[1].set_data(xval[:currentRound], acceptlist[:currentRound])
-        lines[2].set_data(xval[:currentRound], successlist[:currentRound])
+        lines[1].set_data(xval[:currentRound+1], offerlist[:currentRound+1])
+        lines[2].set_data(xval[:currentRound+1], acceptlist[:currentRound+1])
+        lines[3].set_data(xval[:currentRound+1], successlist[:currentRound+1])
         im.set_data(dataHeat)
-        #ax6.cla()
         #ax6.text(heatText(dataHeat))
         
-        return(lines, im, )# annot, )
+        return lines[0],# lines[1], lines[2],#lines[0], lines[1], lines[2])# annot, )
     
     # from here.....
     
@@ -448,9 +477,13 @@ def run_animation():
     fig.canvas.mpl_connect('button_press_event', onClick)
     
 
-    anim = ani.FuncAnimation(fig, animate, init_func = init, fargs = [xval, lines], frames = rounds, interval = 100, repeat_delay = 20)#, cache_frame_data=False)#, blit=True)
-    
+    anim = ani.FuncAnimation(fig, animate, init_func = init, frames = rounds, interval = 70, repeat_delay = 20, blit=True)#, cache_frame_data=False)#, blit=True)
+    #anim.save("Data/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.pickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), writer = writer)
+ 
 run_animation()
+#cProfile.run('run_animation()')
+
+
 
 
 # %%
