@@ -145,6 +145,7 @@ def stratcalc():
     
 offerlist, acceptlist, successlist, stratlisto = stratcalc()
 
+
 def heatPrep():
     stratx, straty = [np.linspace(0.1, 0.9, 9)] * 2
     xgrid, ygrid = np.meshgrid(stratx, straty)

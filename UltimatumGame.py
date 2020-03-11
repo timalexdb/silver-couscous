@@ -29,7 +29,7 @@ class Agent:
         graph.nodes[self.id]['agent'] = self #agentID and nodeID correspond; agent accessible directly through node key
         self.neighbours = []
         
-        self.strategy = Strategy().randomize()
+        self.strategy = self.randomize()
         self.nextstrat = self.strategy
         self.wallet = []        # wallet keeps track of total revenue
         self.revenue = []       # revenue keeps track of #gains per round
@@ -54,8 +54,6 @@ class Agent:
     def getStrategy(self):
         return(self.strategy)
     
-    
-    
     def introduce(self):
         print("{0} born with strategy {1}".format(self, self.strategy))
             
@@ -67,26 +65,18 @@ class Agent:
         
     def storeMoney(self):
         #print("{0} storing money".format(self))
-        self.wallet.append(round(np.sum(self.revenue), 2))
-        self.stratIncome.append(round(np.sum(self.revenue), 2))
+        self.wallet.append(np.sum(self.revenue))#self.wallet.append(round(np.sum(self.revenue), 2))
+        self.stratIncome.append(np.sum(self.revenue))#self.stratIncome.append(round(np.sum(self.revenue), 2))
     
     def adapt(self, graph):                                    # first check highest value, after update strategy
         
         payMax = [np.mean(self.stratIncome) / len(self.neighbours), self]#np.sum(self.revenue), self]                   # calc with sum or mean?
         
-        #neighbours = list(graph.neighbors(self.id))
-        
-        
-        
-        #if testing:
-        #print("\n{0}:".format(self))
                 
         for neighbour in self.neighbours:
             neighRevenue = [np.mean(neighbour.stratIncome) / len(neighbour.neighbours), neighbour]#round(np.sum(neighbour.revenue), 0), neighbour]#[np.sum(graph.nodes[n]['agent'].revenue), graph.nodes[n]['agent']]
 
-            if testing:
-                print("{0} : revenue = {1}".format(neighbour, round(neighRevenue[0], 2)))
-                
+              
             if payMax[0] < neighRevenue[0]:
                 #print("{0}, {1}".format(payMax[0], neighRevenue[0]))
                 payMax = neighRevenue
@@ -97,14 +87,8 @@ class Agent:
                 choiceList = [payMax, neighRevenue]
                 payMax = random.choice(choiceList)
                 
-                
-                
         # exemplar is the neighbour that will be imitated (or agent themselves if they have the highest payoff)
         self.exemplar = payMax[1]
-        
-        if testing:
-            if payMax[0] > np.sum(self.revenue):
-                print("exemplar of {0} is {1} with {2} over {3}".format(self, self.exemplar, payMax[0], np.sum(self.revenue))) #mean or sum?
         
         
     def updateStrategy(self, currentRound):
@@ -116,8 +100,8 @@ class Agent:
         #print("this is changeprob: {0}, len({3}):{1}, len({4}):{2}".format(round(changeProb, 2), len(self.node), len(self.exemplar.node), self, self.exemplar))
         
         if random.random() < explore:
-            self.nextstrat = Strategy().randomize()
-            print("round {2}: {0} exploring and taking new strategy {1}".format(self, self.strategy, currentRound))
+            self.nextstrat = self.randomize()
+            print("round {3}: {0} exploring and taking new strategy p = {1:0.2f}, q = {2:0.2f}".format(self, self.strategy["offer"], self.strategy["accept"], currentRound))
         
         else:
             self.comparisonMethods(selectionStyle)(currentRound)
@@ -138,11 +122,14 @@ class Agent:
     
     def unconditional(self, currentRound):
         self.nextstrat = self.exemplar.strategy
-        print("{0} exploiting strategy from {1}: {2}".format(self, self.exemplar, self.strategy))
+        
+        if self != self.exemplar:
+            print("round {4}: {0} exploiting strategy from {1}: p = {2:0.2f}, q = {3:0.2f}".format(self, self.exemplar, self.strategy["offer"], self.strategy["accept"], currentRound))
+    
     
     def proportional(self, currentRound):
         revSelf = np.mean(self.stratIncome) / len(self.neighbours)#self.wallet[currentRound]/len(self.neighbours)
-        revOpp = np.mean(exemplar.stratIncome)/ len(self.neighbours)#self.exemplar.wallet[currentRound]/len(self.exemplar.neighbours)
+        revOpp = np.mean(self.exemplar.stratIncome)/ len(self.neighbours)#self.exemplar.wallet[currentRound]/len(self.exemplar.neighbours)
         
         changeProb = (revOpp - revSelf) / max(len(self.node), len(self.exemplar.node))
         
@@ -178,11 +165,34 @@ class Agent:
         pairFunc = switcher.get(argument, lambda: "Invalid")
         return(pairFunc)
     
+    def randomize(self):
+        strategy = {}
+        strategy["offer"] = random.uniform(0, 1)#round(random.uniform(0, 1), 2)#random.choice(list(range(1,10,1)))/10
+        strategy["accept"] = random.uniform(0, 1)#round(random.uniform(0, 1), 2)#random.choice(list(range(1,10,1)))/10
+        if strategy["offer"] > 1.0: #0.9:
+            raise ValueError("randomize screws up offer")
+        if strategy["accept"] > 1.0: #0.9:
+            raise ValueError("randomize screws up accept")
+        return(strategy)
+    
+    def mutate(self, strategy):
+        newstrategy = {}
+        #ensure that p and q are in [0, 1]
+        p = min(max(strategy["offer"] + np.random.uniform(-epsilon, epsilon), 0), 1.0)
+        q = min(max(strategy["accept"] + np.random.uniform(-epsilon, epsilon), 0), 1.0)
+
+        newstrategy["offer"] = p
+        newstrategy["accept"] = q
+        
+        return(newstrategy)
     
     def changeStrat(self):
         if self.strategy != self.nextstrat:
             self.stratIncome.clear()
-            self.strategy = self.nextstrat
+            if mutation:
+                self.strategy = self.mutate(self.nextstrat)
+            else:
+                self.strategy = self.nextstrat
         self.revenue.clear()
 
 
@@ -221,7 +231,7 @@ class Graph:
                 self.charT.append(Graph.graphCharacteristics(testGraph))
                 self.graphData['testCase'] = self.charT
 
-                nx.write_gpickle(testGraph, "Graphs/testCaseV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomPlay)))
+                nx.write_gpickle(testGraph, "Graphs/testCaseV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
                                 
                 
         else:
@@ -247,10 +257,10 @@ class Graph:
                 
                 #nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}".format(i))
                 #nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}".format(i))
-                #nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomPlay)))
-                #nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomPlay)))
-                nx.write_gpickle(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomPlay)))
-                nx.write_gpickle(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomPlay)))
+                #nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
+                #nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
+                nx.write_gpickle(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
+                nx.write_gpickle(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
                 
                 
     # =============================================================================
@@ -392,17 +402,8 @@ class ultimatumGame:
     
     def __init__(self, graph):
         self.population = Population(graph)
-        
-        self.data = np.zeros((rounds, 6), dtype=float)
-        
-        self.offerList = []
-        self.acceptList = []
-        self.payList = []
-        
-        self.graph = self.population.graph
-        
-        self.plotting = Plot()        
-        
+        self.data = np.zeros((rounds, 6), dtype=float)        
+        self.graph = self.population.graph           
         if edgeDegree >= agentCount:
             raise ValueError("Amount of edges per node cannot be equal to or greater than amount of agents")
     
@@ -420,17 +421,17 @@ class ultimatumGame:
         offer = proposer.getStrategy()['offer']
         accept = responder.getStrategy()['accept']
         
-        if offer == 1.0:
+        if offer > 1.0: #== 1.0:
             raise ValueError("{0} got offer strategy of 1.0 ({1})".format(proposer, offer))
-        if accept == 1.0:
+        if accept >1.0: #== 1.0:
             raise ValueError("{0} got accept strategy of 1.0({1})".format(responder, offer))
         
         if offer >= accept:
             success = 1
-            payPro = round(1 - offer, 1)
-            payRes = offer   
-            if testing:
-                print("Payoffs for proposer {0} = {1} and for responder {2} = {3}"
+            payPro = 1 - offer
+            payRes = offer
+            #if testing:
+            print("Payoffs for proposer {0} = {1:0.2f} and for responder {2} = {3:0.2f}"
                       .format(proposer, payPro, responder, payRes))
         
         else:
@@ -442,18 +443,14 @@ class ultimatumGame:
                       .format(offer, proposer, accept, responder))
         
         self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)].append([offer, accept, success])
-        #print(self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)])
-        
-        #print("P {0} strategy: {1}, R {2} strategy: {3}".format(proposer, proposer.strategy, responder, responder.strategy))
-        #if len(self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)]) > 1:    
-        #    print(self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)])
         
         proposer.budgeting(payPro, "proposer", responder)
         responder.budgeting(payRes, "responder", proposer)
-                
+
 
     def openEdge(self, proposer, responder, currentRound):
         self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)] = []
+    
     
     def play(self, sim):                              # selection of players and structure surrounding an interaction
         
@@ -470,9 +467,10 @@ class ultimatumGame:
                 proposers = random.sample(edge, 2)
                 responders = proposers[::-1]
                 
-                self.openEdge(struct.nodes[edge[0]]['agent'], struct.nodes[edge[1]]['agent'], n)
+                self.graph.edges[struct.nodes[edge[0]]['agent'].id, struct.nodes[edge[1]]['agent'].id]['round {0}'.format(n)] = []
+                #self.openEdge(struct.nodes[edge[0]]['agent'], struct.nodes[edge[1]]['agent'], n)
                 
-                if randomPlay:
+                if randomRoles:
                     
                     # ensures that agents play similar amount of games as with non-random play
                     
@@ -494,15 +492,9 @@ class ultimatumGame:
             
             for agent in self.population.agents:
                 agent.adapt(struct)
-                
-            print("\n")
             
             for agent in self.population.agents:     
                 agent.storeData()
-                
-                self.offerList.append(agent.shareStats()[0])
-                self.acceptList.append(agent.shareStats()[1])
-                self.payList.append(agent.shareStats()[2])
                 
                 if n != (rounds - 1):
                     agent.updateStrategy(n)
@@ -510,30 +502,16 @@ class ultimatumGame:
             for agent in self.population.agents:
                 agent.changeStrat()
                         
-            self.data[n, 0], self.data[n, 1] = np.mean(self.offerList), np.var(self.offerList)
-            self.data[n, 2], self.data[n, 3]  = np.mean(self.acceptList), np.var(self.acceptList)
-            self.data[n, 4], self.data[n, 5] = np.mean(self.payList), np.var(self.payList)
-            
-            self.offerList.clear()
-            self.acceptList.clear()
-            self.payList.clear()
-        
         for agent in self.population.agents:
             datalist.append(agent.shareData())
             
         for edge in struct.edges:
-            edgedata.append(list(struct.get_edge_data(*edge).values()))
-        
-        #print("this is edgedata: \n{0}".format(edgedata))
+            edgedata.append(list(struct.get_edge_data(*edge).values()))        
 
         if testing:           
             for agent in self.population.agents:
                 print("\ntotal wallet for {0}: {1}".format(agent, agent.wallet))
                 print("final payoff for {0} is: {1}, average: {2}".format(agent, round(np.sum(agent.wallet),4), round((np.sum(agent.wallet)/np.sum(agent.successes)), 4)))
-
-        # self.plotting.offerPlot(self.data)
-        # self.plotting.acceptPlot(self.data)
-        # self.plotting.payPlot(self.data)
 
         return(datalist, edgedata)
 
@@ -543,29 +521,6 @@ class Plot:
     def __init__(self):
         self.name = "None"
 
-    def offerPlot(self, stats):
-        
-        xval = range(rounds)
-        yval = stats[0:rounds,0]
-        err = stats[0:rounds,1]
-        
-        self.doPlot(xval, yval, err, "Average offer per round")
-        
-    def acceptPlot(self, stats):
-        xval = range(rounds)
-        yval = stats[0:rounds,2]
-        err = stats[0:rounds,3]
-        
-        self.doPlot(xval, yval, err, "Average accept per round")
-        
-    def payPlot(self, stats):
-        xval = range(rounds)
-        yval = stats[0:rounds,4]
-        err = stats[0:rounds,5]
-        
-        self.doPlot(xval, yval, err, "Average payoff per round")
-        
-        
     def measurePlot(self, key, xval, graphCharacteristics, xlab):
         
         yAPL = list()
@@ -591,23 +546,6 @@ class Plot:
         plt.xlabel('rounds (n)')
         plt.show()
                
-        
-        
-class Strategy:
-    
-    def __init__(self):
-        self.name = "None"
-        
-    def randomize(self):
-        strategy = {}
-        strategy["offer"] = random.choice(list(range(1,10,1)))/10
-        strategy["accept"] = random.choice(list(range(1,10,1)))/10
-        if strategy["offer"] > 0.9:
-            raise ValueError("randomize screws up offer")
-        if strategy["accept"] > 0.9:
-            raise ValueError("randomize screws up accept")
-        return(strategy)
-    
     
 class Simulation:
     
@@ -619,7 +557,6 @@ class Simulation:
     
     def run(self):
         
-        
         gameTemp = []
         edgeTemp = []
         edgeList = []
@@ -630,10 +567,7 @@ class Simulation:
 
                 print("\n=== Commencing Simulation {0} ===\n".format(sim))
                 
-                #read = open("Graphs/{0}{1}".format(g, 'V'+str(sim)), 'rb')
-                #read = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}".format(g, sim, agentCount, simulations, rounds, explore, str(randomPlay)))
-                # = nx.read_edgelist(read, nodetype=int)
-                read = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomPlay)), 'rb')
+                read = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles)), 'rb')
                 graph = nx.read_gpickle(read)#, node_type=int)
                 
                 
@@ -641,7 +575,6 @@ class Simulation:
                     nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
                     plt.title('{0} (simulation {1}/{2})'.format(g, sim+1, simulations))
                     plt.show()
-                    
                 
                 if len(graph) != agentCount:
                     raise ValueError("agents incorrectly replaced")
@@ -659,9 +592,9 @@ class Simulation:
                 gameTemp.append(simData)
                 edgeTemp.append(edgeDat)                
                 
-                nx.write_gpickle(graph, "Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity))
+                nx.write_gpickle(graph, "Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity))
                 
-                with open("Data/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.pickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), 'wb') as f:
+                with open("Data/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.pickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity), 'wb') as f:
                     pickle.dump(UG.population.agents, f)
 
                 UG.population.killAgents()
@@ -672,29 +605,26 @@ class Simulation:
                     edgeList.append((g, sim, str(edge)))
                 
                 #print("This is g.edges DF: \n {0}".format(pd.DataFrame(data=edgeTemp2, index = range(rounds), columns = edgeList)))
-        #print(edgeList)
         indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
         indexEdge = pd.MultiIndex.from_tuples(edgeList, names=['Graph', 'Simulation', 'Edge'])
         
         gameTemp = list(map(list, zip(*(itertools.chain.from_iterable(gameTemp)))))
         edgeTemp = list(map(list, zip(*(itertools.chain.from_iterable(edgeTemp)))))
-
-        #print(edgeList)
         
         gameData = pd.DataFrame(data=gameTemp, index = range(rounds), columns = indexGame)
-        #print(gameData)
         
         edgeData = pd.DataFrame(data=edgeTemp, index = range(rounds), columns = indexEdge)
-        #print(edgeData)
+
         if testCase:
-            gameData.to_csv("Data/gameTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding='utf-8')
-            edgeData.to_csv("Data/edgeTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding='utf-8')
+            gameData.to_csv("Data/gameTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity), encoding='utf-8')
+            edgeData.to_csv("Data/edgeTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity), encoding='utf-8')
         else:
-            gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding='utf-8')
-            edgeData.to_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomPlay), selectionStyle, selectionIntensity), encoding='utf-8')
+            gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity), encoding='utf-8')
+            edgeData.to_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity), encoding='utf-8')
         
         if testCase:
             print("THIS WAS A TESTCASE. N = {0}, K = {1}, G = {2}".format(agentCount, edgeDegree, graphType))
+
 
   
 if __name__ == '__main__':
@@ -703,9 +633,10 @@ if __name__ == '__main__':
     # =============================================================================
     
     simulations = 4#4
-    rounds = 1000#20
+    rounds = 100#20
     agentCount = 6
     edgeDegree = 4
+
     # idea: noise around fermi-comp values?
     
     selectionStyle = "unconditional"      # 0: unconditional, 1: proportional, 2: Fermi
@@ -724,7 +655,14 @@ if __name__ == '__main__':
     # =============================================================================
     
     #proportional = True
-    randomPlay = False
+    randomRoles = False     # if false, focal agent is assigned role randomly
+    
+    
+    mutation = True        # mutation implemented as [strategy to exploit] ± epsilon 
+    epsilon = 0.1   
+    
+    updating = 0            # 0 : all agents update; 1 : at random (n) agents update
+    updateN = 1
     
     testing = False
     showGraph = False
@@ -742,10 +680,10 @@ if __name__ == '__main__':
     Simulation().run()    #game = Simulation().run()
                                     #game.run()
     
-    #settings = [simulations, rounds, agentCount, edgeDegree, explore, randomPlay]
+    #settings = [simulations, rounds, agentCount, edgeDegree, explore, randomRoles]
     
-    # add exploration rate, proportional and randomPlay to filename
-    #exec('finalDat = pd.read_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}.csv" , encoding="utf-8", header = [0,1])'.format(agentCount, simulations, rounds, explore, str(randomPlay)))
+    # add exploration rate, proportional and randomRoles to filename
+    #exec('finalDat = pd.read_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_prop={4}_random={5}.csv" , encoding="utf-8", header = [0,1])'.format(agentCount, simulations, rounds, explore, str(randomRoles)))
     
     #for g in graphType:
-        #exec('finalDat_{0} = pd.read_csv("Data/gameData_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}.csv" , encoding="utf-8", header = [0,1])'.format(str(g)[0], agentCount, simulations, rounds, explore, str(randomPlay), g))
+        #exec('finalDat_{0} = pd.read_csv("Data/gameData_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}.csv" , encoding="utf-8", header = [0,1])'.format(str(g)[0], agentCount, simulations, rounds, explore, str(randomRoles), g))
