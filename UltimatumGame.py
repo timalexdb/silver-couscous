@@ -29,13 +29,14 @@ class Agent:
         graph.nodes[self.id]['agent'] = self #agentID and nodeID correspond; agent accessible directly through node key
         self.neighbours = []
         
-        self.strategy = self.randomize()
+        self.strategy = self.randomise()
         self.nextstrat = self.strategy
         self.wallet = []        # wallet keeps track of total revenue
         self.revenue = []       # revenue keeps track of #gains per round
         self.stratIncome = []
+        self.fitness = 0
         self.successes = []
-        self.exemplar = 0
+        self.exemplar = self
         self.data = []
         
         #if str(self) in dataSet.columns:
@@ -63,64 +64,38 @@ class Agent:
         if payoff > 0:
             self.successes.append(1)
         
+        
     def storeMoney(self):
-        #print("{0} storing money".format(self))
         self.wallet.append(np.sum(self.revenue))#self.wallet.append(round(np.sum(self.revenue), 2))
         self.stratIncome.append(np.sum(self.revenue))#self.stratIncome.append(round(np.sum(self.revenue), 2))
-    
-    def adapt(self, graph):                                    # first check highest value, after update strategy
+        self.fitness = np.mean(self.stratIncome) / len(self.neighbours)
+        self.data.append([self.strategy['offer'], self.strategy['accept'], np.sum(self.revenue)])
         
-        payMax = [np.mean(self.stratIncome) / len(self.neighbours), self]#np.sum(self.revenue), self]                   # calc with sum or mean?
         
-                
+    def findExemplar(self):
+        paydict = {}
+        
         for neighbour in self.neighbours:
-            neighRevenue = [np.mean(neighbour.stratIncome) / len(neighbour.neighbours), neighbour]#round(np.sum(neighbour.revenue), 0), neighbour]#[np.sum(graph.nodes[n]['agent'].revenue), graph.nodes[n]['agent']]
-
-              
-            if payMax[0] < neighRevenue[0]:
-                #print("{0}, {1}".format(payMax[0], neighRevenue[0]))
-                payMax = neighRevenue
-            
-            # if neighbours have similar revenue, none can be benefited by neighbour order. doesn't account for focal agent
-            
-            if payMax[0] is neighRevenue[0] and payMax[1] != self:
-                choiceList = [payMax, neighRevenue]
-                payMax = random.choice(choiceList)
-                
-        # exemplar is the neighbour that will be imitated (or agent themselves if they have the highest payoff)
-        self.exemplar = payMax[1]
+            paydict[neighbour] = neighbour.fitness
+        
+        best = max(paydict,key = paydict.get)
+        
+        if best.fitness > self.fitness:
+            self.exemplar = best
+        elif best.fitness == self.fitness:
+            self.exemplar = np.random.choice([self, best])
         
         
     def updateStrategy(self, currentRound):
-        #self.revenue.clear()
-        
-        if testing:
-            print("{0}: Revenue of best neighbour {1}: {2}".format(self, self.exemplar, np.mean(self.exemplar.wallet[currentRound])))
-        
-        #print("this is changeprob: {0}, len({3}):{1}, len({4}):{2}".format(round(changeProb, 2), len(self.node), len(self.exemplar.node), self, self.exemplar))
-        
         if random.random() < explore:
-            self.nextstrat = self.randomize()
-            print("round {3}: {0} exploring and taking new strategy p = {1:0.2f}, q = {2:0.2f}".format(self, self.strategy["offer"], self.strategy["accept"], currentRound))
-        
+            self.nextstrat = self.randomise()
+            print("round {3}: {0} exploring and taking new strategy p = {1:0.2f}, q = {2:0.2f}".format(self, self.strategy["offer"], self.strategy["accept"], currentRound))   
         else:
             self.comparisonMethods(selectionStyle)(currentRound)
-          
         
-        """
-        elif selectionStyle == 0:
-            self.unconditional(self.exemplar)
-        elif selectionStyle == 1:
-            self.proportional
-            if random.random() < changeProb:
-                self.strategy = self.exemplar.strategy
-        else:
-            self.strategy = self.exemplar.strategy
-            print("{0} exploiting strategy from {1}: {2}".format(self, self.exemplar, self.strategy))
-        """    
-    
     
     def unconditional(self, currentRound):
+        self.findExemplar()
         self.nextstrat = self.exemplar.strategy
         
         if self != self.exemplar:
@@ -128,31 +103,27 @@ class Agent:
     
     
     def proportional(self, currentRound):
-        revSelf = np.mean(self.stratIncome) / len(self.neighbours)#self.wallet[currentRound]/len(self.neighbours)
-        revOpp = np.mean(self.exemplar.stratIncome)/ len(self.neighbours)#self.exemplar.wallet[currentRound]/len(self.exemplar.neighbours)
+        model = random.choice(self.neighbours)
+        # note! neighbour selection is now random instead of ((( the best )))
         
-        changeProb = (revOpp - revSelf) / max(len(self.node), len(self.exemplar.node))
+        revSelf = self.fitness #self.wallet[currentRound]/len(self.neighbours)
+        revOpp = model.fitness #self.exemplar.wallet[currentRound]/len(self.exemplar.neighbours)
+        
+        changeProb = (revOpp - revSelf) / max(len(self.node), len(model.node))
         
         if random.random() < changeProb:
             self.nextstrat = self.exemplar.strategy
             
-        
+            
     def fermi(self, currentRound):
         model = random.choice(self.neighbours)
-        
         #fitSelf = self.wallet[currentRound] / len(self.neighbours)#/(currentRound+1)#sum(self.successes)
         #fitMod = model.wallet[currentRound] / len(model.neighbours)#/(currentRound+1)#sum(model.successes)
-        
-        fitSelf = np.mean(self.stratIncome) / len(self.neighbours)
-        fitMod = np.mean(model.stratIncome) / len(self.neighbours)
-        
-        #print("{2} len self.neighbours: {0} len self.node: {1}".format(len(self.neighbours), len(self.node), self))
-        
-        fermiProb = 1 / (1 + np.exp(-selectionIntensity * (fitMod - fitSelf)))
-        
+                
+        fermiProb = 1 / (1 + np.exp(-selectionIntensity * (self.fitness - model.fitness)))
         if random.random() < fermiProb:
             self.nextstrat = model.strategy
-            print("{0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, fitSelf, model, fitMod, fermiProb))
+            print("{0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, self.fitness, model, model.fitness, fermiProb))
             print("round {4}: {0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy, currentRound))
 
 
@@ -165,39 +136,41 @@ class Agent:
         pairFunc = switcher.get(argument, lambda: "Invalid")
         return(pairFunc)
     
-    def randomize(self):
+    
+    def randomise(self):
         strategy = {}
         strategy["offer"] = random.uniform(0, 1)#round(random.uniform(0, 1), 2)#random.choice(list(range(1,10,1)))/10
         strategy["accept"] = random.uniform(0, 1)#round(random.uniform(0, 1), 2)#random.choice(list(range(1,10,1)))/10
         if strategy["offer"] > 1.0: #0.9:
-            raise ValueError("randomize screws up offer")
+            raise ValueError("randomise screws up offer")
         if strategy["accept"] > 1.0: #0.9:
-            raise ValueError("randomize screws up accept")
+            raise ValueError("randomise screws up accept")
         return(strategy)
     
-    def mutate(self, strategy):
+    
+    def noisify(self, strategy):
         newstrategy = {}
         #ensure that p and q are in [0, 1]
-        p = min(max(strategy["offer"] + np.random.uniform(-epsilon, epsilon), 0), 1.0)
-        q = min(max(strategy["accept"] + np.random.uniform(-epsilon, epsilon), 0), 1.0)
+        p = min(max(strategy["offer"] + np.random.uniform(-noise_e, noise_e), 0), 1.0)
+        q = min(max(strategy["accept"] + np.random.uniform(-noise_e, noise_e), 0), 1.0)
 
         newstrategy["offer"] = p
         newstrategy["accept"] = q
         
         return(newstrategy)
     
+    
     def changeStrat(self):
         if self.strategy != self.nextstrat:
             self.stratIncome.clear()
-            if mutation:
-                self.strategy = self.mutate(self.nextstrat)
-            else:
+            
+            if noise:
+                self.strategy = self.noisify(self.nextstrat)
+                print("{0} noisified from {1} to {2}".format(self, self.nextstrat, self.strategy))
+            else:   
                 self.strategy = self.nextstrat
+                
         self.revenue.clear()
-
-
-    def storeData(self):
-        self.data.append([self.strategy['offer'], self.strategy['accept'], np.sum(self.revenue)])
         
         
     def shareData(self):
@@ -223,7 +196,6 @@ class Graph:
          self.charT = list()
          
     def createGraph(self):
-        
         if testCase:
             
             for i in range(simulations):
@@ -262,15 +234,7 @@ class Graph:
                 nx.write_gpickle(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
                 nx.write_gpickle(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
                 
-                
-    # =============================================================================
-    #            can this part directly below delet plos is for testng
-    # =============================================================================
-                #read = open("Graphs/test_connWattStroV{0}".format(i), 'rb')
-                #graph = nx.read_edgelist(read, nodetype=int)
-    # =============================================================================
-    #             'til here
-    # =============================================================================
+    
                 #nx.draw(graph, node_color='b', with_labels=True, alpha=0.53, width=1.5)
                 #plt.show()
                 #nx.draw(graph2, node_color='r', with_labels=True, alpha=0.53, width=1.5)
@@ -382,6 +346,15 @@ class Population:
         for agent in self.agents:
             agent.meetNeighbours(self.graph)
             
+    def returnAgents(self):
+        if updating == 1:
+            agentPoule = np.random.choice(self.agents, size=updateN, replace=False)
+            print("Agent(s) for updating: {0}".format(agentPoule))
+        else:
+            agentPoule = self.agents
+            
+        return(agentPoule)
+        
             
     def killAgents(self):
         Agent.agentID = 0
@@ -431,8 +404,7 @@ class ultimatumGame:
             payPro = 1 - offer
             payRes = offer
             #if testing:
-            print("Payoffs for proposer {0} = {1:0.2f} and for responder {2} = {3:0.2f}"
-                      .format(proposer, payPro, responder, payRes))
+            #print("Payoffs for proposer {0} = {1:0.2f} and for responder {2} = {3:0.2f}".format(proposer, payPro, responder, payRes))
         
         else:
             success = 0
@@ -448,12 +420,12 @@ class ultimatumGame:
         responder.budgeting(payRes, "responder", proposer)
 
 
-    def openEdge(self, proposer, responder, currentRound):
-        self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)] = []
+    #def openEdge(self, proposer, responder, currentRound):
+    #    self.graph.edges[proposer.id, responder.id]['round {0}'.format(currentRound)] = []
     
     
-    def play(self, sim):                              # selection of players and structure surrounding an interaction
-        
+    
+    def play(self, sim):                              # selection of players and structure surrounding an interaction    
         self.population.populate()
         
         struct = self.population.graph
@@ -471,9 +443,7 @@ class ultimatumGame:
                 #self.openEdge(struct.nodes[edge[0]]['agent'], struct.nodes[edge[1]]['agent'], n)
                 
                 if randomRoles:
-                    
-                    # ensures that agents play similar amount of games as with non-random play
-                    
+                    # ensures that agents play similar amount of games as with non-random play                    
                     for i in range(2):
                         j = random.choice(range(2))
                         proposer = struct.nodes[proposers[j]]['agent']
@@ -490,30 +460,30 @@ class ultimatumGame:
             for agent in self.population.agents:
                 agent.storeMoney()
             
-            for agent in self.population.agents:
-                agent.adapt(struct)
-            
-            for agent in self.population.agents:     
-                agent.storeData()
-                
-                if n != (rounds - 1):
-                    agent.updateStrategy(n)
-            
-            for agent in self.population.agents:
-                agent.changeStrat()
-                        
+            if n != (rounds - 1):
+                self.updateAgents(n)
+       
+        # ==== end of rounds =====
+         
+        
         for agent in self.population.agents:
             datalist.append(agent.shareData())
-            
+        
         for edge in struct.edges:
             edgedata.append(list(struct.get_edge_data(*edge).values()))        
-
-        if testing:           
-            for agent in self.population.agents:
-                print("\ntotal wallet for {0}: {1}".format(agent, agent.wallet))
-                print("final payoff for {0} is: {1}, average: {2}".format(agent, round(np.sum(agent.wallet),4), round((np.sum(agent.wallet)/np.sum(agent.successes)), 4)))
-
+        
         return(datalist, edgedata)
+    
+    
+    def updateAgents(self, n):
+        updagents = self.population.returnAgents()
+        
+        for agent in updagents:
+                agent.updateStrategy(n)
+            
+        for agent in updagents: #self.population.agents:
+            agent.changeStrat()
+
 
 
 class Plot:
@@ -588,7 +558,9 @@ class Simulation:
                 
                 UG = ultimatumGame(graph)
                 simData, edgeDat = UG.play(sim)
-
+                print(simData)
+                print(len(simData))
+                print(np.array(simData))
                 gameTemp.append(simData)
                 edgeTemp.append(edgeDat)                
                 
@@ -603,7 +575,7 @@ class Simulation:
                 
                 for edge in list(graph.edges):
                     edgeList.append((g, sim, str(edge)))
-                
+                print("this is edgelist: \n {0}".format(edgeList))
                 #print("This is g.edges DF: \n {0}".format(pd.DataFrame(data=edgeTemp2, index = range(rounds), columns = edgeList)))
         indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
         indexEdge = pd.MultiIndex.from_tuples(edgeList, names=['Graph', 'Simulation', 'Edge'])
@@ -632,19 +604,17 @@ if __name__ == '__main__':
     # HYPERPARAM
     # =============================================================================
     
-    simulations = 4#4
-    rounds = 100#20
-    agentCount = 6
+    simulations = 2#4
+    rounds = 1000#20
+    agentCount = 20
     edgeDegree = 4
-
-    # idea: noise around fermi-comp values?
     
-    selectionStyle = "unconditional"      # 0: unconditional, 1: proportional, 2: Fermi
+    selectionStyle = "Fermi"      # 0: unconditional, 1: proportional, 2: Fermi
     selectionIntensity = 10 # the bèta in the Fermi-equation
     
-    explore = 0.02       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
+    explore = 0.01       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
     
-    testCase = True
+    testCase = False
     
     if testCase:
         agentCount = 2
@@ -657,9 +627,9 @@ if __name__ == '__main__':
     #proportional = True
     randomRoles = False     # if false, focal agent is assigned role randomly
     
-    
-    mutation = True        # mutation implemented as [strategy to exploit] ± epsilon 
-    epsilon = 0.1   
+    #mutation_e = 0.2
+    noise = True        # noise implemented as [strategy to exploit] ± noise_e 
+    noise_e = 0.1
     
     updating = 0            # 0 : all agents update; 1 : at random (n) agents update
     updateN = 1
@@ -667,18 +637,23 @@ if __name__ == '__main__':
     testing = False
     showGraph = False
     
-    agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
+    for exp in np.arange(0.01, 0.08, step=0.01):
     
-    gg = Graph()
-    gg.createGraph()
-    
-    graphType = ['Watts-Strogatz', 'Barabasi-Albert']
-    
-    if testCase:
-        graphType = ['testCase']
-    
-    Simulation().run()    #game = Simulation().run()
-                                    #game.run()
+        for selectionStyle in ['Fermi']:
+            
+            agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
+            
+            gg = Graph()
+            gg.createGraph()
+            
+            graphType = ['Barabasi-Albert']#'Watts-Strogatz', 'Barabasi-Albert']
+            
+            if testCase:
+                graphType = ['testCase']
+            
+            
+            Simulation().run()    #game = Simulation().run()
+                                            #game.run()
     
     #settings = [simulations, rounds, agentCount, edgeDegree, explore, randomRoles]
     
