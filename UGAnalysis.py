@@ -26,6 +26,7 @@ import cProfile
 import re
 import warnings
 import subprocess
+import ast
 
 #plt.ion()
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -40,7 +41,7 @@ set_self = True
 
 if set_self:
     simulations = 2#4
-    rounds = 1000#20
+    rounds = 10#20
     agentCount = 5
     edgeDegree = 3
     # idea: noise around fermi-comp values?
@@ -110,12 +111,8 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
         
         finalDat = []
         
-        if testCase:
-            gameAna = pd.read_csv("Data/gameTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8', header = [0,1,2])
-            edgeAna = pd.read_csv("Data/edgeTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8', header = [0,1,2])
-        else:
-            gameAna = pd.read_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding="utf-8", header = [0,1,2])
-            edgeAna = pd.read_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8', header = [0,1,2])
+        gameAna = pd.read_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding="utf-8", header = [0,1,2])
+        edgeAna = pd.read_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8', header = [0,1,2])
         
         #print(gameAna)
         #print(edgeAna)
@@ -129,8 +126,41 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
         graph = graphFocus
         positions = nx.spring_layout(graph)
         
+        
         # =============================================================================
-        # # Animation function
+        # # Unpacking and Interpolation functions
+        # =============================================================================
+        
+        #p_array, q_array, u_array = np.array([ast.literal_eval(x) for x in (gameAna[g][str(sim)].loc[0, :])]).T #gameAna[g][str(sim)].loc[0, :].apply(literal_eval)
+        
+        #[ast.literal_eval(values) for values in np.array(gameAna[g][str(sim)])[x] for x in range(rounds)]
+        
+        #[np.array(gameAna[g][str(sim)])[x] for x in range(rounds)]
+        # --> gives array with round per each index
+        
+        #[ast.literal_eval(values) for rnd in np.array(gameAna[g][str(sim)]) for values in rnd]
+        # --> gives value per agent for all rounds
+        
+        #[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(sim)])]
+        # --> gives value per agent per round
+        
+        p_total, q_total, u_total = np.array([[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(sim)])]).T
+        # --> if take transpose of ._total lists, values of each agent per round within one sim
+        
+        #np.array([[[ast.literal_eval(values) for values in rnd] for rnd in simul] for simul in np.array(gameAna[g][str(sim)])]).T
+        #[rnd for simul in gameAna[g][str(simul)] for rnd in simul]
+        
+        #[[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)]
+        # --> return sim lists with bla
+        
+        #np.array([[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)])[0].T
+        # --> returns separate p, q and u per agent for sim [0]
+        
+        #np.array([[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)]).T[0]
+        # --> returns separate p values per agent for both sims! matrix (5, 10, 2). so can use to fill p_crosssim, q_..., u_...!
+        
+        # =============================================================================
+        # # Animation functions
         # =============================================================================
         
         
@@ -575,3 +605,7 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
     
     # agents increase in colour as their overall wallet sum increases relative to others
 
+dft1 = pd.DataFrame({'Agent 0':[4, 1.5, 0.8, 12], 'Agent 1' : np.random.randint(14, size=(4)), 'Agent 2' : np.random.randint(14, size=(4))})
+dft2 = dft1 * 2
+
+dfmean = pd.DataFrame(np.array([x.to_numpy() for x in [dft1, dft2]]).mean(axis=0), index=dft1.index, columns=dft1.columns)

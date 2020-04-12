@@ -500,7 +500,7 @@ class ultimatumGame:
         updagents = self.population.returnAgents()
         
         for agent in updagents:
-                agent.updateStrategy(n)
+            agent.updateStrategy(n)
             
         for agent in updagents: #self.population.agents:
             agent.changeStrat()
@@ -576,14 +576,8 @@ class Simulation:
                 
                 print("characteristics of {0}({1}): \n{2}".format(g, sim, gg.graphData[g][sim]))
                 
-                
-                #print("this is graph.edges: {0}".format(graph.edges))
-                
                 UG = ultimatumGame(graph)
                 simData, edgeDat = UG.play(sim)
-                #print(simData)
-                #print(len(simData))
-                #print(np.array(simData))
                 gameTemp.append(simData)
                 edgeTemp.append(edgeDat)                
                 
@@ -593,29 +587,24 @@ class Simulation:
                     pickle.dump(UG.population.agents, f)
 
                 UG.population.killAgents()
-
-                #edgeTemp2 = list(map(list, zip(*itertools.chain.from_iterable(edgeTemp))))
                 
                 for edge in list(graph.edges):
                     edgeList.append((g, sim, str(edge)))
                 #print("this is edgelist: \n {0}".format(edgeList))
                 #print("This is g.edges DF: \n {0}".format(pd.DataFrame(data=edgeTemp2, index = range(rounds), columns = edgeList)))
+                    
         indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
+        #indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList, ['p', 'q', 'u']), names=['Graph', 'Simulation', 'Agent', 'Info']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
         indexEdge = pd.MultiIndex.from_tuples(edgeList, names=['Graph', 'Simulation', 'Edge'])
         
         gameTemp = list(map(list, zip(*(itertools.chain.from_iterable(gameTemp)))))
         edgeTemp = list(map(list, zip(*(itertools.chain.from_iterable(edgeTemp)))))
         
         gameData = pd.DataFrame(data=gameTemp, index = range(rounds), columns = indexGame)
-        
         edgeData = pd.DataFrame(data=edgeTemp, index = range(rounds), columns = indexEdge)
 
-        if testCase:
-            gameData.to_csv("Data/gameTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8')
-            edgeData.to_csv("Data/edgeTest_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8')
-        else:
-            gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8')
-            edgeData.to_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8')
+        gameData.to_csv("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8')
+        edgeData.to_csv("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.2f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.csv".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN), encoding='utf-8')
         
         if testCase:
             print("THIS WAS A TESTCASE. N = {0}, K = {1}, G = {2}".format(agentCount, edgeDegree, graphType))
@@ -628,7 +617,7 @@ if __name__ == '__main__':
     # =============================================================================
     
     simulations = 2#4
-    rounds = 1000#20
+    rounds = 10#20
     agentCount = 5
     edgeDegree = 3
     
