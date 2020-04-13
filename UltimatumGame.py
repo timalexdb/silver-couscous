@@ -57,13 +57,15 @@ class Agent:
         return(self.strategy)
     
     def introduce(self):
-        print("{0} born with strategy {1}".format(self, self.strategy))
+        if verbose:
+            print("{0} born with strategy {1}".format(self, self.strategy))
             
         
     def budgeting(self, payoff, role, partner):                               # revenue per round
         self.revenue.append(payoff)
         if role == "proposer":
-            print("{0}: payoff {1}, partner {2}".format(self, round(payoff, 2), partner))
+            if verbose:
+                print("{0}: payoff {1}, partner {2}".format(self, round(payoff, 2), partner))
         if payoff > 0:
             self.successes.append(1)
         
@@ -108,7 +110,8 @@ class Agent:
         self.nextstrat = self.exemplar.strategy
         
         if self != self.exemplar:
-            print("round {4}: {0} exploiting strategy from {1}: p = {2:0.2f}, q = {3:0.2f}".format(self, self.exemplar, self.strategy["offer"], self.strategy["accept"], currentRound))
+            if verbose:
+                print("round {4}: {0} exploiting strategy from {1}: p = {2:0.2f}, q = {3:0.2f}".format(self, self.exemplar, self.strategy["offer"], self.strategy["accept"], currentRound))
     
     
     def proportional(self, currentRound):
@@ -119,13 +122,15 @@ class Agent:
         revOpp = np.mean(model.stratIncome)#model.wallet[currentRound]  #self.exemplar.wallet[currentRound]/len(self.exemplar.neighbours)
               
         changeProb = (revOpp - revSelf) / (2 * max(len(self.neighbours), len(model.neighbours)))
-        print("{0} revSelf: {1}, {2} revOpp: {3}, changeProb = {4}, k = {5}".format(self, revSelf, model, revOpp, changeProb, max(len(self.neighbours), len(model.neighbours))))
+        if verbose:
+            print("{0} revSelf: {1}, {2} revOpp: {3}, changeProb = {4}, k = {5}".format(self, revSelf, model, revOpp, changeProb, max(len(self.neighbours), len(model.neighbours))))
         if changeProb > 1.0:    
             sys.exit("revhigher")
         
         if random.random() < changeProb:
             self.nextstrat = model.strategy
-            print("{0} switch!".format(self))
+            if verbose:
+                print("{0} switch!".format(self))
             #sys.exit()
             
             
@@ -137,8 +142,9 @@ class Agent:
         fermiProb = 1 / (1 + np.exp(-selectionIntensity * (model.fitness - self.fitness)))
         if random.random() < fermiProb:
             self.nextstrat = model.strategy
-            print("{0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, self.fitness, model, model.fitness, fermiProb))
-            print("round {4}: {0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy, currentRound))
+            if verbose:
+                print("{0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, self.fitness, model, model.fitness, fermiProb))
+                print("round {4}: {0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy, currentRound))
 
 
     def comparisonMethods(self, argument):
@@ -185,7 +191,8 @@ class Agent:
             
             if noise:
                 self.strategy = self.noisify(self.nextstrat)
-                print("{0} noisified from {1} to {2}".format(self, self.nextstrat, self.strategy))
+                if verbose:
+                    print("{0} noisified from {1} to {2}".format(self, self.nextstrat, self.strategy))
             else:   
                 self.strategy = self.nextstrat
             
@@ -203,7 +210,7 @@ class Agent:
     
     def clear(self):
         if len(self.revenue) % 2 != 0:
-            print("revenue no bueno chef")
+            raise ValueError("revenue no bueno chef")
         self.revenue.clear()
 
 
@@ -375,7 +382,8 @@ class Population:
     def returnAgents(self):
         if updating == 1:
             agentPoule = np.random.choice(self.agents, size=updateN, replace=False)
-            print("Agent(s) for updating: {0}".format(agentPoule))
+            if verbose:
+                print("Agent(s) for updating: {0}".format(agentPoule))
         else:
             agentPoule = self.agents
             
@@ -556,14 +564,15 @@ class Simulation:
         edgeTemp = []
         edgeList = []
         
-        for g in graphType:
+        for g in ['Watts-Strogatz']:#graphType:
             
             for sim in range(simulations):
-
+            
                 print("\n=== Commencing Simulation {0} ===\n".format(sim))
                 
-                read = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles)), 'rb')
-                graph = nx.read_gpickle(read)#, node_type=int)
+                #read = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles)), 'rb')
+                read = open("Graphs/{0}V0_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles)), 'rb')
+                graph = nx.read_gpickle(read)
                 
                 
                 if showGraph:
@@ -581,20 +590,18 @@ class Simulation:
                 gameTemp.append(simData)
                 edgeTemp.append(edgeDat)                
                 
-                nx.write_gpickle(graph, "Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity))
+                #nx.write_gpickle(graph, "Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.gpickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity))
                 
                 with open("Data/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.pickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity), 'wb') as f:
                     pickle.dump(UG.population.agents, f)
-
+    
                 UG.population.killAgents()
                 
                 for edge in list(graph.edges):
                     edgeList.append((g, sim, str(edge)))
-                #print("this is edgelist: \n {0}".format(edgeList))
-                #print("This is g.edges DF: \n {0}".format(pd.DataFrame(data=edgeTemp2, index = range(rounds), columns = edgeList)))
                     
+                        
         indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
-        #indexGame = pd.MultiIndex.from_product((graphType, range(simulations), agentList, ['p', 'q', 'u']), names=['Graph', 'Simulation', 'Agent', 'Info']) #graphType, range(simulations), agentList), names=['Graph', 'Simulation', 'Agent'])
         indexEdge = pd.MultiIndex.from_tuples(edgeList, names=['Graph', 'Simulation', 'Edge'])
         
         gameTemp = list(map(list, zip(*(itertools.chain.from_iterable(gameTemp)))))
@@ -616,8 +623,8 @@ if __name__ == '__main__':
     # HYPERPARAM
     # =============================================================================
     
-    simulations = 2#4
-    rounds = 10#20
+    simulations = 100#4
+    rounds = 1000#20
     agentCount = 5
     edgeDegree = 3
     
@@ -641,7 +648,7 @@ if __name__ == '__main__':
     
     #mutation_e = 0.2
     noise = True        # noise implemented as [strategy to exploit] ± noise_e 
-    noise_e = 0.1
+    noise_e = 0.05
     
     updating = 1            # 0 : all agents update; 1 : at random (n) agents update
     updateN = 1
@@ -649,17 +656,19 @@ if __name__ == '__main__':
     testing = False
     showGraph = False
     
+    verbose = False
     #for exp in np.arange(0.01, 0.08, step=0.01):
 #    for updateAmount in range(1, 8, 2):
     
 #        updateN = updateAmount
-        
-    for selectionStyle in ['proportional']:#, 'Fermi']:
+    
+    gg = Graph()
+    gg.createGraph()
+    
+    for selectionStyle in ['unconditional', 'proportional', 'Fermi']:
        
-       agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)]) #agent for agent in range(0,agentCount)])
+       agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
        
-       gg = Graph()
-       gg.createGraph()
        
        graphType = ['Watts-Strogatz']#, 'Barabasi-Albert']
        

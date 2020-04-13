@@ -11,17 +11,11 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import math
-import random
 import pickle
-import itertools
-from itertools import chain
-from collections import Counter
 from ast import literal_eval
 from matplotlib import cm
 from matplotlib import colors
 from UltimatumGame import Agent, Graph
-#import UltimatumGame
-import matplotlib.patches as mpatches
 import cProfile
 import re
 import warnings
@@ -33,15 +27,16 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 #from collections import OrderedDict
 #from colorspacious import cspace_converter
 
+interpolat=True
 
 graphType = ['Watts-Strogatz', 'Barabasi-Albert']
-agentList = []
+#agentList = []
 
 set_self = True
 
 if set_self:
-    simulations = 2#4
-    rounds = 10#20
+    simulations = 100#4
+    rounds = 1000#20
     agentCount = 5
     edgeDegree = 3
     # idea: noise around fermi-comp values?
@@ -73,11 +68,8 @@ if set_self:
 if testCase:
     graphType = ['Testcase']
 
-#else:
-#    simulations, rounds, agentCount, edgeDegree, explore, proportional, randomRoles = settings
-    
-#g = graphType[0]
-sim = 1
+
+sim = 0
 
 if testCase:
     g = 'testCase'
@@ -95,18 +87,18 @@ if testCase:
 
 #    updateN = updateAmount
     
-for selectionStyle in ['proportional']:#, 'Fermi']:
+for selectionStyle in ['unconditional', 'proportional', 'Fermi']:#, 'Fermi']:
    
 
-    for g in [ 'Watts-Strogatz']:#graphType:
+    for g in ['Watts-Strogatz']:#graphType:
                 
         with open("Data/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.pickle".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity), 'rb') as f:
             Agents = pickle.load(f)
         
-        for agent in Agents:
-            agentList.append(str(agent))
+        #for agent in Agents:
+        #    agentList.append(str(agent))
             #print(agent.shareData())
-        agentNames = list(map(str, agentList))
+        #agentNames = list(map(str, agentList))
         
         
         finalDat = []
@@ -117,7 +109,8 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
         #print(gameAna)
         #print(edgeAna)
         
-        readFocus = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}.gpickle"
+        #readFocus = open("Graphs/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}.gpickle"
+        readFocus = open("Graphs/{0}V0_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}.gpickle"
                          .format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles)), 'rb') #{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_prop={6}_random={7}".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles)))
         graphFocus = nx.read_gpickle(readFocus)#, nodetype=int)
         
@@ -131,39 +124,26 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
         # # Unpacking and Interpolation functions
         # =============================================================================
         
-        #p_array, q_array, u_array = np.array([ast.literal_eval(x) for x in (gameAna[g][str(sim)].loc[0, :])]).T #gameAna[g][str(sim)].loc[0, :].apply(literal_eval)
-        
-        #[ast.literal_eval(values) for values in np.array(gameAna[g][str(sim)])[x] for x in range(rounds)]
-        
-        #[np.array(gameAna[g][str(sim)])[x] for x in range(rounds)]
-        # --> gives array with round per each index
-        
-        #[ast.literal_eval(values) for rnd in np.array(gameAna[g][str(sim)]) for values in rnd]
-        # --> gives value per agent for all rounds
-        
-        #[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(sim)])]
-        # --> gives value per agent per round
-        
-        p_total, q_total, u_total = np.array([[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(sim)])]).T
-        # --> if take transpose of ._total lists, values of each agent per round within one sim
-        
-        #np.array([[[ast.literal_eval(values) for values in rnd] for rnd in simul] for simul in np.array(gameAna[g][str(sim)])]).T
-        #[rnd for simul in gameAna[g][str(simul)] for rnd in simul]
-        
-        #[[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)]
-        # --> return sim lists with bla
-        
-        #np.array([[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)])[0].T
-        # --> returns separate p, q and u per agent for sim [0]
-        
-        #np.array([[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)]).T[0]
+        #p_total, q_total, u_total = np.array([[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)]).T
         # --> returns separate p values per agent for both sims! matrix (5, 10, 2). so can use to fill p_crosssim, q_..., u_...!
         
-        # =============================================================================
-        # # Animation functions
-        # =============================================================================
+        #p_mean, q_mean, u_mean = np.array([[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)]).mean(axis=0).T
+        # --> yields (nxm) matrices, n=agentcount and m=rounds, with cell vals averaged over sims
+        
+        if interpolat == True:
+            gameData = np.array([[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)]).mean(axis=0)
+            edgeData = np.array([[[ast.literal_eval(edges) for edges in rnd] for rnd in np.array(edgeAna[g][str(simul)])] for simul in range(simulations)]).mean(axis=0)
+        else:
+            gameData = np.array([[[ast.literal_eval(values) for values in rnd] for rnd in np.array(gameAna[g][str(simul)])] for simul in range(simulations)])[sim]
+            edgeData = np.array([[[ast.literal_eval(edges) for edges in rnd] for rnd in np.array(edgeAna[g][str(simul)])] for simul in range(simulations)])[sim]
+        
+        *stratlist, u_list = gameData.T
+        p_list, q_list = stratlist
         
         
+        # =============================================================================
+        # # Metric functions
+        # =============================================================================
         
         
         def safe_div(x, y):
@@ -171,278 +151,169 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
         
         
         def stratcalc():
-            avgOffer = []#, avgAccept, avgSucc, strategies = ([], ) * 4
-            avgAccept = []
-            avgSucc = []
+            avgOffer, avgAccept, avgSucc = ([], ) * 3
             
-            edgeCount = len(graph.edges)
+            edgeCount = np.shape(edgeData)[1]
             
-            for rnd in range(rounds):
-                totSucc = []
-                
-                stratlist = gameAna[g][str(sim)].loc[rnd, :].apply(literal_eval)
-                offers, accepts = zip(*[strat[:-1] for strat in stratlist])
+            *_, succ = edgeData.T
             
-                for i in range(2):
-                    totSucc.extend([dat[i][2] for dat in edgeAna[g][str(sim)].loc[rnd, :].apply(literal_eval)])
-                    #edgeAna[g][str(sim)].loc[rnd, :].values.apply
-                    # pd.eval(edgeAna[g][str(sim)].loc[0, :].values)[0,1,2] (from 1st edge 2nd list 3rd value)
-                
-                y1 = np.sum(offers)/agentCount # must be set of
-                y2 = np.sum(accepts)/agentCount
-                y3 = np.sum(totSucc)/(edgeCount*2) #every edge is played twice
-                
-                avgOffer.append(y1)
-                avgAccept.append(y2)
-                avgSucc.append(y3)
-        
-        
-            return(avgOffer, avgAccept, avgSucc, stratlist)
+            avgOffer = p_list.mean(axis=0)
+            avgAccept = q_list.mean(axis=0)
+            avgSucc = succ.T.mean(axis=2).mean(axis=1)
             
-        offerlist, acceptlist, successlist, stratlisto = stratcalc()
-        
-        
-        def heatPrep():
-            stratx, straty = [np.linspace(0.1, 0.9, 9)] * 2
-            xgrid, ygrid = np.meshgrid(stratx, straty)
-            griddy = np.vstack(([xgrid], [ygrid])).T
-            dims = list(griddy.shape[:-1])
-            dims.append(rounds)
-            dat = np.zeros(shape = dims)
+            if (avgOffer > 1).any() or (avgAccept > 1).any() or (avgSucc > 1).any():
+                raise ValueError("Averages incorrect")
             
-            return(griddy, dat)
-        
-        #stratgrid, datagrid = heatPrep()
-        
-        def stratTally():#currentRound):
-            stratgrid, datagr = heatPrep()
+            return(avgOffer, avgAccept, avgSucc)
             
-            for currentRound in range(rounds):
-                stratlist = gameAna[g][str(sim)].loc[currentRound, :].apply(literal_eval)
-                strategies = []
-                #if currentRound != 0:
-                #    datagr[:,:,currentRound] = datagr[:,:,currentRound - 1] * 0.6
-                
-                for agent in range(agentCount):
-                    pq = tuple(stratlist[agent][:-1])
-                    strategies.append(pq)
-                    
-                stratcount = Counter(chain(strategies))
-                
-                for i in range(stratgrid.shape[0]):
-                    for j in range(stratgrid.shape[1]):
-                        #print("stratgrid {0} check in strategies:\n{1}".format(tuple(stratgrid[i,j]), strategies))
-                        if tuple(np.around(stratgrid[i,j], 1)) in stratcount:
-                            datagr[i, j][currentRound] += stratcount[tuple(np.around(stratgrid[i,j], 1))]
-            return(datagr)
+        offerlist, acceptlist, successlist = stratcalc()
         
         
         def size_calc():
-            size_map = np.zeros(shape = (agentCount, rounds))
+            #size_map = np.zeros(shape = (agentCount, rounds))
+            size_map = []
             
-            for currentRound in range(rounds):
-                paylist = []
+            np.shape(u_list)
+            
+            
+            for rnd in range(rounds):
+                size_list = []
                 size = 1100
                 dev = 0.5
                 
-                for agent in Agents:
-                    #print("Payoff for {0}: {1}".format(agent, agent.shareData()[i][2]))
-                    paylist.append((agent.shareData()[currentRound][2]))
-                    
-                mean = np.mean(paylist)
-                stdev = np.std(paylist)
+                mean = np.mean(u_list.T[rnd])
+                stdev = np.std(u_list.T[rnd])
                 
-                for val in paylist:
+                for val in u_list.T[rnd]:
                     newsize = round(size + ((size*dev) * safe_div((val-mean), stdev)), 0)
-                    size_map[paylist.index(val), currentRound] = newsize
-                    
+                    size_list.append(newsize)
+                    #size_map[paylist.index(val), rnd] = newsize
+                size_map.append(size_list)
             return(size_map)
-        
+                
         
         def nodeCol_calc():
             # agents increase in colour as their distance to equal splits decreases relative to others
-            #color = np.zeros(shape = (agentCount, rounds))
             color = []
+            cmap = cm.get_cmap('RdYlGn')            
             
-            #cmap = plt.get_cmap("RdYlGn")
-            #colors.Normalize(vmin=((1 - (penalty*(abs(0.5-0.1))**2))**2)**3, vmax=1)
-            
-            for currentRound in range(rounds):
-                #penalty = 6#0.8
-                stratlist = list(gameAna[g][str(sim)].loc[currentRound, :].apply(literal_eval))
+            for rnd in range(rounds):
                 coltemp = []
                 
-                for strat in stratlist:
-                    p, q = strat[:-1]
-        
+                for p, q in np.array(stratlist).T[rnd]:
+                    
                     # values for both p and q experience a quadratic decline as they strive further from 0.5
                     #p_grad = 1 - (penalty*(abs(0.5-p))**2)
                     #q_grad = 1 - (penalty*(abs(0.5-q))**2)
                     #p_grad = abs(0.5-p)
                     #q_grad = abs(0.5-q)
-        
-                    cmap = cm.get_cmap('RdYlGn')
-                    norm = colors.Normalize(vmin=0.1, vmax=0.9)
-                    """
-                    # V E R Y _ P A T C H Y 
-                    if agentCount == 2:
-                        ind = 0
-                        for strateg in stratlist:
-                            if tuple(strateg) == tuple(strat):
-                                color[ind, currentRound] = p_grad + q_grad
-                            else:
-                                ind += 1
-                    """
                     
-                    #else:
-                        #print(stratlist)
-                        #print(strat)
-                        #color[stratlist.tolist().index(strat)] = p_grad + q_grad#((p_grad*q_grad)**3)
-                        #color[stratlist.tolist().index(strat)] = list(cmap(norm(p)))
-                        
+                    #cmap = cm.get_cmap('RdYlGn')
+                    norm = colors.Normalize(vmin=0, vmax=1)                        
                     coltemp.append(list(cmap(norm(p))))
                         
-                        #construct a color for sub-p and super-p
                 color.append(coltemp)    
-                    
-                    
-                    #cmap = plt.cm.get_cmap('RdYlGn')
-                    #for val in color:
-                    #    color_map.append(cmap(val))
-            
-            return(color)#_map)
+            return(color)
         
-        #nodeCol_calc()
         
         def edgeCol_calc():
-            edgecol = np.zeros(shape=(len(graph.edges), rounds))
+            edgecol = []#np.zeros(shape=(len(graph.edges), rounds))
             edgewidth = []
             
-            for currentRound in range(rounds):
-                edgeDat = list(edgeAna[g][str(sim)].loc[currentRound, :].apply(literal_eval))
-                edgetemp = []
-                
-                if currentRound != 0:
-                    edgecol[:, currentRound] = edgecol[:, currentRound - 1]# * 0.6
-                    
-                for edge in range(len(graph.edges)):
-                    edgecol[edge][currentRound] += sum([i[-1] for i in edgeDat[edge]])
-                    if sum([i[-1] for i in edgeDat[edge]]) == 2:
-                        edgetemp.append(4)
-                    elif sum([i[-1] for i in edgeDat[edge]]) == 1:
-                        edgetemp.append(2.7)
-                    else:
-                        edgetemp.append(1.5)
-                edgewidth.append(edgetemp)
-                
-            return(edgecol, edgewidth)    
-        
-        
-        
-        
-        def agentStrats():
-            stratarray = []
             
             for currentRound in range(rounds):
-                stratz = []
-                stratlist = gameAna[g][str(sim)].loc[currentRound, :].apply(literal_eval)
+                edgetemp = []
+                coltemp = []
                 
-                for agent in range(agentCount):
-                    stratz.append(tuple(stratlist[agent][:-1]))
-                stratarray.append([stratz])
+                for edge in edgeData[currentRound]:
+                    coltemp.append(sum(edge.T[-1]))
+                    
+                    if sum(edge.T[-1]) == 2:
+                        edgetemp.append(4)
+                    elif sum(edge.T[-1]) == 1:
+                        edgetemp.append(2.7)
+                    else:
+                        edgetemp.append(1.5)  
                 
-            return(np.array(stratarray))
+                edgewidth.append(edgetemp)   
+                if edgecol:
+                    edgecol.append(np.add(edgecol[-1], coltemp))
+                else:
+                    edgecol.append(coltemp)
+                     
+            return(edgecol, edgewidth)    
         
-        stratData = agentStrats()
+        # =============================================================================
+        # # Metric Creation        
+        # =============================================================================
+        
+        
+        offerlist, acceptlist, successlist = stratcalc()
         sizes = size_calc()
         col_array = nodeCol_calc()
         edgecouleurs, edgewidths = edgeCol_calc()
         
-        #datagrid = stratTally()
-        #dataHeat = datagrid[:,:,0]
         
         def update(currentRound):
-            nodesizes = sizes[:, currentRound]
+            nodesizes = sizes[currentRound]
             nodecolors = col_array[currentRound]
-            edgecolors = edgecouleurs[:, currentRound]
+            edgecolors = edgecouleurs[currentRound]
             edgesize = edgewidths[currentRound]
-            agentStrategies = stratData[currentRound]
+            #agentStrategies = np.array(stratlist).T[currentRound]
+            agentStrategies = np.array(stratlist).T[currentRound].T
             return(nodesizes, nodecolors, edgesize, edgecolors, agentStrategies)#dataH, agentStrategies)
     
-        
         #%%
-        
-        gs_kw = dict(width_ratios=[4,2,2], height_ratios=[1.5,2.5])
-        fig, [[ax1, ax2, ax3], [ax4, ax5, ax6]] = plt.subplots(2, 3, figsize=(32,13), gridspec_kw = gs_kw)#, 'ncols':(2)}) #plt.figure(figsize=(18,8))
-        
-        gs = ax1.get_gridspec()
-        ax1.remove()
-        ax4.remove()
-        axgraph = fig.add_subplot(gs[:2, 0])
-        fig.colorbar(cm.ScalarMappable(cmap=cm.get_cmap('RdYlGn')), ax=axgraph)
-        
-        """
-        annot = axgraph.annotate("", xy=(0,0), xytext=(20,20),textcoords="offset points",
-                            bbox=dict(boxstyle="round", fc="w"),
-                            arrowprops=dict(arrowstyle="->"))
-        annot.set_visible(True)
-        """
-        
-        gs2 = ax2.get_gridspec()
-        ax2.remove()
-        ax3.remove()
-        axplot = fig.add_subplot(gs[0, 1:3])
-        
-        xval = np.arange(0, rounds, 1)
-        
-        # used to be ax2
-        axplot.set_ylim([0, 1])
-        axplot.set_xlim([0, rounds-1])
-        axplot.set_xticks(np.append(np.arange(0, rounds, step=math.floor(rounds/20)), rounds-1))
-        fairline = axplot.axhline(0.5, color="black", ls='--', alpha=0.4)
-        axplot.yaxis.grid()
-        
-        #offerline, = axplot.plot(xval, offerlist, color='red', label = 'average p', alpha=0.54)
-        #acceptline, = axplot.plot(xval, acceptlist, color='midnightblue', label = 'average q', alpha=0.54)
-        #successline, = axplot.plot(xval, successlist, color='lime', label = 'ratio successes', alpha=0.54)
-        #fakeline, = axplot.plot([], [])
-        offerline, = axplot.plot([], [], lw=1, color='red', label = 'average p', alpha=0.54)
-        acceptline, = axplot.plot([], [], lw=1, color='midnightblue', label = 'average q', alpha=0.54)
-        successline, = axplot.plot([], [], lw=1, color='lime', label = 'ratio successes', alpha=0.54)
-        lines = [offerline, acceptline, successline]#fakeline, offerline, acceptline, successline]
-        axplot.legend()
-        
-        """
-        # used to be ax4
-        im = ax6.imshow(dataHeat, origin="lower", interpolation="none", vmax=np.amax(datagrid))
-        ax6.set_xticklabels(list(np.around(np.linspace(0.0, 0.9, 10), 1)))
-        ax6.set_yticklabels(list(np.around(np.linspace(0.0, 0.9, 10), 1)))
-        ax6.set_xlabel("accepts (q)")
-        ax6.set_ylabel("offers (p)")
-        #gridtext = ax6.text('', ha = "center", va = "center", color='orange', alpha=0.75)
-        fig.colorbar(im, ax=ax6, shrink = 0.9)
-        #"""
-        
-        X = np.random.randn(6)
-        Y = np.random.randn(6)
-        initp, initq = [np.asarray(s)[:,0] for s in stratData[0].T]
-        
-        nbins = np.linspace(0.0, 1.0, 21)#50
-        dat, p, q = np.histogram2d(initq, initp, bins=nbins, density=False)
-        ext = [q[0], q[-1], p[0], p[-1]]
-        
-        im = ax6.imshow(dat.T, origin='lower', cmap = plt.cm.viridis, interpolation = 'bicubic', extent = ext)#hist2d([], [], bins=20, cmap=plt.cm.BuGn)
-        ax6.set_xlabel("accepts (q)")
-        ax6.set_ylabel("offers (p)")
-        fig.colorbar(im, ax=ax6, shrink=0.9)
-        
-        sns.kdeplot(initp, ax=ax5, color='r', bw=0.1, clip=(0, 1), label="p")
-        sns.kdeplot(initq, ax=ax5, color='b', bw=0.1, clip=(0, 1), label="q")
-        ax5.set_xlim(left = 0, right = 1) 
-        
-        
+        # =============================================================================
+        # # Animation Functions     
+        # =============================================================================
         
         def run_animation():
+            gs_kw = dict(width_ratios=[4,2,2], height_ratios=[1.5,2.5])
+            fig, [[ax1, ax2, ax3], [ax4, ax5, ax6]] = plt.subplots(2, 3, figsize=(32,13), gridspec_kw = gs_kw)#, 'ncols':(2)}) #plt.figure(figsize=(18,8))
+            
+            gs = ax1.get_gridspec()
+            ax1.remove()
+            ax4.remove()
+            axgraph = fig.add_subplot(gs[:2, 0])
+            fig.colorbar(cm.ScalarMappable(cmap=cm.get_cmap('RdYlGn')), ax=axgraph)
+            
+            gs2 = ax2.get_gridspec()
+            ax2.remove()
+            ax3.remove()
+            axplot = fig.add_subplot(gs[0, 1:3])
+            
+            xval = np.arange(0, rounds, 1)
+            
+            # used to be ax2
+            axplot.set_ylim([0, 1])
+            axplot.set_xlim([0, rounds-1])
+            axplot.set_xticks(np.append(np.arange(0, rounds, step=math.floor(rounds/10)), rounds-1))
+            fairline = axplot.axhline(0.5, color="black", ls='--', alpha=0.4)
+            axplot.yaxis.grid()
+    
+            offerline, = axplot.plot([], [], lw=1, color='red', label = 'average p', alpha=0.54)
+            acceptline, = axplot.plot([], [], lw=1, color='midnightblue', label = 'average q', alpha=0.54)
+            successline, = axplot.plot([], [], lw=1, color='lime', label = 'ratio successes', alpha=0.54)
+            lines = [offerline, acceptline, successline]#fakeline, offerline, acceptline, successline]
+            axplot.legend()
+            
+            X = np.random.randn(6)
+            Y = np.random.randn(6)
+            initp, initq = np.array(stratlist).T[0].T
+            
+            nbins = np.linspace(0.0, 1.0, 21)
+            dat, p, q = np.histogram2d(initq, initp, bins=nbins, density=False)
+            ext = [q[0], q[-1], p[0], p[-1]]
+            
+            im = ax6.imshow(dat.T, origin='lower', cmap = plt.cm.viridis, interpolation = 'bicubic', extent = ext)#hist2d([], [], bins=20, cmap=plt.cm.BuGn)
+            ax6.set_xlabel("accepts (q)")
+            ax6.set_ylabel("offers (p)")
+            fig.colorbar(im, ax=ax6, shrink=0.9)
+            
+            sns.kdeplot(initp, ax=ax5, color='r', bw=0.1, clip=(0, 1), label="p")
+            sns.kdeplot(initq, ax=ax5, color='b', bw=0.1, clip=(0, 1), label="q")
+            ax5.set_xlim(left = 0, right = 1) 
             anim_running = True
            
             def onClick(event):
@@ -454,23 +325,19 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
                     anim.event_source.start()
                     anim_running = True
             
-                    
-            
             def init():
                 # used to be ax2
                 lines[0].set_data([],[])
                 lines[1].set_data([],[])
-                lines[2].set_data([],[])
-                #lines[3].set_data([],[])
-        
-                return lines,#lines[0] # lines[1], lines[2], 
+                lines[2].set_data([],[])        
+                return lines,
         
             
             def animate(currentRound):
                 #since edge interaction 2x per round, animate edge round 2x currentRound? (set frames = rounds times two, maintain currentRound by (frames/2))
                 
-                nodesiz, nodecol, edgesize, edgecol, pqlist = update(currentRound)# dataHeat, pqlist = update(currentRound)
-                agentp, agentq = [np.asarray(s)[:,0] for s in pqlist.T] 
+                nodesiz, nodecol, edgesize, edgecol, pqlist = update(currentRound)
+                agentp, agentq = pqlist 
                 
                 axgraph.clear()
                 ax5.clear()
@@ -485,20 +352,60 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
                 pqdata, pstr, qstr = np.histogram2d(agentq, agentp, bins=nbins)
                 sns.kdeplot(agentp, ax=ax5, shade=True, color='r', bw=0.1, clip=(0, 1), label="p")
                 sns.kdeplot(agentq, ax=ax5, shade=True, color='b', bw=0.1, clip=(0, 1), label="q")
-                im.set_data(pqdata.T)
-                        
-                
-                #return lines, # lines[1], lines[2],#lines[0], lines[1], lines[2])# annot, )
-            
+                im.set_data(pqdata.T)            
             
             fig.canvas.mpl_connect('button_press_event', onClick)
+        
+            anim = ani.FuncAnimation(fig, animate, init_func = init, frames = rounds, interval = 100, repeat_delay = 20)        
+        
+        
+        def save_animation():
+            gs_kw = dict(width_ratios=[4,2,2], height_ratios=[1.5,2.5])
+            fig, [[ax1, ax2, ax3], [ax4, ax5, ax6]] = plt.subplots(2, 3, figsize=(32,13), gridspec_kw = gs_kw)#, 'ncols':(2)}) #plt.figure(figsize=(18,8))
             
-        
-            anim = ani.FuncAnimation(fig, animate, init_func = init, frames = rounds, interval = 100, repeat_delay = 20)#, blit=True)#, cache_frame_data=False)#, blit=True)
-            #anim.save("Videos/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}.mp4".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity), writer = writer)        
-        
-        
-        def save_animation():    
+            gs = ax1.get_gridspec()
+            ax1.remove()
+            ax4.remove()
+            axgraph = fig.add_subplot(gs[:2, 0])
+            fig.colorbar(cm.ScalarMappable(cmap=cm.get_cmap('RdYlGn')), ax=axgraph)
+            
+            gs2 = ax2.get_gridspec()
+            ax2.remove()
+            ax3.remove()
+            axplot = fig.add_subplot(gs[0, 1:3])
+            
+            xval = np.arange(0, rounds, 1)
+            
+            # used to be ax2
+            axplot.set_ylim([0, 1])
+            axplot.set_xlim([0, rounds-1])
+            axplot.set_xticks(np.append(np.arange(0, rounds, step=math.floor(rounds/10)), rounds-1))
+            fairline = axplot.axhline(0.5, color="black", ls='--', alpha=0.4)
+            axplot.yaxis.grid()
+    
+            offerline, = axplot.plot([], [], lw=1, color='red', label = 'average p', alpha=0.54)
+            acceptline, = axplot.plot([], [], lw=1, color='midnightblue', label = 'average q', alpha=0.54)
+            successline, = axplot.plot([], [], lw=1, color='lime', label = 'ratio successes', alpha=0.54)
+            lines = [offerline, acceptline, successline]#fakeline, offerline, acceptline, successline]
+            axplot.legend()
+            
+            X = np.random.randn(6)
+            Y = np.random.randn(6)
+            initp, initq = np.array(stratlist).T[0].T
+            
+            nbins = np.linspace(0.0, 1.0, 21)
+            dat, p, q = np.histogram2d(initq, initp, bins=nbins, density=False)
+            ext = [q[0], q[-1], p[0], p[-1]]
+            
+            im = ax6.imshow(dat.T, origin='lower', cmap = plt.cm.viridis, interpolation = 'bicubic', extent = ext)#hist2d([], [], bins=20, cmap=plt.cm.BuGn)
+            ax6.set_xlabel("accepts (q)")
+            ax6.set_ylabel("offers (p)")
+            fig.colorbar(im, ax=ax6, shrink=0.9)
+            
+            sns.kdeplot(initp, ax=ax5, color='r', bw=0.1, clip=(0, 1), label="p")
+            sns.kdeplot(initq, ax=ax5, color='b', bw=0.1, clip=(0, 1), label="q")
+            ax5.set_xlim(left = 0, right = 1) 
+            
             canvas_width, canvas_height = fig.canvas.get_width_height()
             # Open an ffmpeg process
             outf = "Videos/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}_updating={9}_updateN={10}.mp4".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN)
@@ -512,26 +419,24 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
         
             def aniupdate(currentRound):
                 #since edge interaction 2x per round, animate edge round 2x currentRound? (set frames = rounds times two, maintain currentRound by (frames/2))
-                
-                nodesiz, nodecol, edgesize, edgecol, pqlist = update(currentRound)# dataHeat, pqlist = update(currentRound)
-                agentp, agentq = [np.asarray(s)[:,0] for s in pqlist.T] 
+                nodesiz, nodecol, edgesize, edgecol, pqlist = update(currentRound)
+                agentp, agentq = pqlist
                 
                 axgraph.clear()
                 ax5.clear()
         
                 nx.draw_networkx(graph, pos = positions, ax=axgraph, edge_color = edgecol, edge_cmap = plt.cm.coolwarm, node_color = nodecol, edge_vmin=0, edge_vmax=(2*rounds), alpha = 0.53, node_size = 1200, width = edgesize, with_labels=True, font_size = 30)
                 
-                axgraph.table(np.around(pqlist, 2), colLabels = agentNames, cellLoc = 'center')#, cellColours = list(nodecol), cmap=plt.cm.RdYlGn)
+                #axgraph.table(np.around(pqlist, 2), colLabels = agentNames, cellLoc = 'center')#, cellColours = list(nodecol), cmap=plt.cm.RdYlGn)
                 lines[0].set_data(xval[:currentRound+1], offerlist[:currentRound+1])
                 lines[1].set_data(xval[:currentRound+1], acceptlist[:currentRound+1])
                 lines[2].set_data(xval[:currentRound+1], successlist[:currentRound+1])
                 
                 pqdata, pstr, qstr = np.histogram2d(agentq, agentp, bins=nbins)
-                sns.kdeplot(agentp, ax=ax5, shade=True, color='r', bw=0.1, clip=(0, 1), label="p")#, rug=True, hist=False)
+                sns.kdeplot(agentp, ax=ax5, shade=True, color='r', bw=0.1, clip=(0, 1), label="p")
                 sns.kdeplot(agentq, ax=ax5, shade=True, color='b', bw=0.1, clip=(0, 1), label="q")
                 
                 im.set_data(pqdata.T)
-                
                 
             for frame in range(rounds):
                 if (frame+1) % 50 == 0:
@@ -551,52 +456,60 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
         
             pipp.communicate()
         
+        
         def save_image():
+            nodesiz, nodecol, edgesize, edgecol, pqlist = update(rounds-1)
             gs_kw = dict(width_ratios=[2,1,1])#, height_ratios=[1])
-            fig, [ax1, ax2, ax3] = plt.subplots(1, 3, figsize=(32,13), gridspec_kw = gs_kw)
+            fig, [[ax1, ax2, ax3], [ax4, ax5, ax6]] = plt.subplots(2, 3, figsize=(32,13), gridspec_kw = gs_kw)#, 'ncols':(2)}) #plt.figure(figsize=(18,8))
+        
+            gs = ax1.get_gridspec()
+            ax1.remove()
+            ax4.remove()
+            axgraph = fig.add_subplot(gs[:2, 0])
+            fig.colorbar(cm.ScalarMappable(cmap=cm.get_cmap('RdYlGn')), ax=axgraph)
+            
+            gs2 = ax2.get_gridspec()
+            ax2.remove()
+            ax3.remove()
+            axplot = fig.add_subplot(gs[0, 1:3])
             
             xval = np.arange(0, rounds, 1)
             
-            #nx.draw_networkx(graph, pos = positions, ax=axgraph, edge_color = edgecol, edge_cmap = plt.cm.coolwarm, node_color = nodecol, edge_vmin=0, edge_vmax=(2*rounds), alpha = 0.53, node_size = 1200, width = edgesize, with_labels=True, font_size = 30)
+            nx.draw_networkx(graph, pos = positions, ax=axgraph, edge_color = edgecol, edge_cmap = plt.cm.coolwarm, node_color = nodecol, edge_vmin=0, edge_vmax=(2*rounds), alpha = 0.53, node_size = 1200, width = edgesize, with_labels=True, font_size = 30)
             
             # used to be ax2
-            ax1.set_ylim([0, 1])
-            ax1.set_xlim([0, rounds-1])
-            ax1.set_xticks(np.append(np.arange(0, rounds, step=math.floor(rounds/20)), rounds-1))
-            fairline = ax1.axhline(0.5, color="black", ls='--', alpha=0.4)
-            ax1.yaxis.grid()
+            axplot.set_ylim([0, 1])
+            axplot.set_xlim([0, rounds-1])
+            axplot.set_xticks(np.append(np.arange(0, rounds, step=math.floor(rounds/20)), rounds-1))
+            fairline = axplot.axhline(0.5, color="black", ls='--', alpha=0.4)
+            axplot.yaxis.grid()
             
-            offerline, = ax1.plot(xval, offerlist, lw=1, color='red', label = 'average p', alpha=0.54)
-            acceptline, = ax1.plot(xval, acceptlist, lw=1, color='midnightblue', label = 'average q', alpha=0.54)
-            successline, = ax1.plot(xval, successlist, lw=1, color='lime', label = 'ratio successes', alpha=0.54)
-            #lines = [offerline, acceptline, successline]#fakeline, offerline, acceptline, successline]
-            ax1.legend()
+            offerline, = axplot.plot(xval, offerlist, lw=1, color='red', label = 'average p', alpha=0.54)
+            acceptline, = axplot.plot(xval, acceptlist, lw=1, color='midnightblue', label = 'average q', alpha=0.54)
+            successline, = axplot.plot(xval, successlist, lw=1, color='lime', label = 'ratio successes', alpha=0.54)
+            axplot.legend()
             
-            #X = np.random.randn(6)
-            #Y = np.random.randn(6)
-            initp, initq = [np.asarray(s)[:,0] for s in stratData[-1].T]
+            finalp, finalq = pqlist
             
-            nbins = np.linspace(0.0, 1.0, 21)#50
-            dat, p, q = np.histogram2d(initq, initp, bins=nbins, density=False)
+            nbins = np.linspace(0.0, 1.0, 21)
+            dat, p, q = np.histogram2d(finalq, finalp, bins=nbins, density=False)
             ext = [q[0], q[-1], p[0], p[-1]]
             
-            im = ax3.imshow(dat.T, origin='lower', cmap = plt.cm.viridis, interpolation = 'bicubic', extent = ext)#hist2d([], [], bins=20, cmap=plt.cm.BuGn)
-            ax3.set_xlabel("accepts (q)")
-            ax3.set_ylabel("offers (p)")
-            fig.colorbar(im, ax=ax3, shrink=0.9)
+            im = ax6.imshow(dat.T, origin='lower', cmap = plt.cm.viridis, interpolation = 'bicubic', extent = ext)#hist2d([], [], bins=20, cmap=plt.cm.BuGn)
+            ax6.set_xlabel("accepts (q)")
+            ax6.set_ylabel("offers (p)")
+            fig.colorbar(im, ax=ax6, shrink=0.9)
             
-            sns.kdeplot(initp, ax=ax2, color='r', bw=0.1, clip=(0, 1), label="p")
-            sns.kdeplot(initq, ax=ax2, color='b', bw=0.1, clip=(0, 1), label="q")
-            ax2.set_xlim(left = 0, right = 1) 
-            ###                
+            sns.kdeplot(finalp, ax=ax5, color='r', bw=0.1, clip=(0, 1), label="p")
+            sns.kdeplot(finalq, ax=ax5, color='b', bw=0.1, clip=(0, 1), label="q")
+            ax5.set_xlim(left = 0, right = 1)                 
             
             plt.savefig("Images/{0}V{1}_n{2}_sim{3}_round{4}_exp={5:.2f}_random={6}_select={7}_beta={8}_updating={9}_updateN={10}.png".format(g, sim, agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN))
             
         
-        #run_animation()        
-        save_animation()
-        #save_image()
-        #cProfile.run('run_animation()')
+        #run_animation()
+        #save_animation()
+        save_image()
        
     # %%
     # either use gameAna['graphtype']['sim']['agent(s)'][row:row+1] or gameAna[loc], see https://stackoverflow.com/questions/53927460/select-rows-in-pandas-multiindex-dataframe
@@ -604,8 +517,3 @@ for selectionStyle in ['proportional']:#, 'Fermi']:
     #   to change IPython backend, enter %matplotlib followed by 'qt' for animations or 'inline' for plot pane
     
     # agents increase in colour as their overall wallet sum increases relative to others
-
-dft1 = pd.DataFrame({'Agent 0':[4, 1.5, 0.8, 12], 'Agent 1' : np.random.randint(14, size=(4)), 'Agent 2' : np.random.randint(14, size=(4))})
-dft2 = dft1 * 2
-
-dfmean = pd.DataFrame(np.array([x.to_numpy() for x in [dft1, dft2]]).mean(axis=0), index=dft1.index, columns=dft1.columns)
