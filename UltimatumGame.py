@@ -16,6 +16,7 @@ import pickle
 import sys
 import collections
 import math
+import matplotlib.ticker as tck
 from matplotlib import cm
 from matplotlib import colors
 from scipy.stats import norm
@@ -23,8 +24,9 @@ from collections import OrderedDict
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
 from ast import literal_eval
-from random import choice
+from random import choice, sample
 from time import process_time
+from statistics import mean
 
 
 class Agent:
@@ -42,6 +44,9 @@ class Agent:
         self.degree = 0
         
         self.strategy = self.randomise()
+        #self.strategy = {}
+        #self.strategy['offer'], self.strategy['accept'] = [(0.8, 0.1), (0.5, 0.1)][self.id]
+        
         self.nextstrat = self.strategy
         #self.wallet = []        # wallet keeps track of total revenue
         #self.revenue = []       # revenue keeps track of #gains per round
@@ -66,7 +71,12 @@ class Agent:
     
     def introduce(self):
         if verbose:
-            print("{0} born with strategy {1}".format(self, self.strategy))
+            print("{0} agent {3} born with strategy p={1:.4f}, q={2:.4f}".format(self, self.strategy['offer'], self.strategy['accept'], self.id))
+        
+        if logging == True:
+            if latexTable == True:
+                lafile.write("\t \\multicolumn{{4}}{{l}}{{\\texttt{{{0} initialised $s_{{{1}}}=({2:.4f},{3:.4f})$ }} }}\\\ \n".format(self, self.id, self.strategy['offer'], self.strategy['accept']))
+            file.write("{0} born with strategy p={1:.4f}, q={2:.4f}\n".format(self, self.strategy['offer'], self.strategy['accept']))
             
         
     def budgeting(self, payoff, role, partner):                               # revenue per round
@@ -75,17 +85,16 @@ class Agent:
         if verbose:
             if role == "proposer":
                 print("{0}: payoff {1}, partner {2}".format(self, round(payoff, 2), partner))
-
         
-        
-    def storeMoney(self):
-        income = self.revenue#sum(self.revenue)
+    def storeMoney(self, currentRound):
+        income = self.revenue #sum(self.revenue)
         #self.wallet.append(income)#self.wallet.append(round(np.sum(self.revenue), 2))
         self.stratIncome.append(income)#self.stratIncome.append(round(np.sum(self.revenue), 2))
         
         self.fitness = income / (2 * self.degree)#len(self.neighbours))#np.mean(self.stratIncome) / (2* len(self.neighbours)) 
         
-        self.data.append([self.strategy['offer'], self.strategy['accept'], income])
+        if dataStore == True or currentRound == rounds-1:
+            self.data.append([self.strategy['offer'], self.strategy['accept'], income])
 
         #print("{0} revenue: {1}, sI: {2}, sI-mean: {3}, fit: {4}, K: {5}".format(self, self.revenue, self.stratIncome, np.mean(self.stratIncome), self.fitness, len(self.neighbours)))
         
@@ -100,11 +109,15 @@ class Agent:
             paydict[neighbour] = neighbour.fitness
         
         best = max(paydict,key = paydict.get)
+        #print("{0} fit: {1} pay: {4}, best {2} fit: {3} pay: {5}".format(self, self.fitness, best, best.fitness, self.revenue, best.revenue))
+        #file.write("{0} fit: {1:.4f} pay: {4:.4f}, best {2} fit: {3:.4f} pay: {5:.4f}\n".format(self, self.fitness, best, best.fitness, self.revenue, best.revenue))
         
         if best.fitness > self.fitness:
             self.exemplar = best
         elif best.fitness == self.fitness:
-            self.exemplar = np.choice([self, best])
+            self.exemplar = choice([self, best])
+        else:
+            self.exemplar = self
         
         
     def updateStrategy(self, currentRound):
@@ -120,9 +133,14 @@ class Agent:
         self.nextstrat = self.exemplar.strategy
         
         if self != self.exemplar:
-            if verbose:
-                print("round {4}: {0} exploiting strategy from {1}: p = {2:0.2f}, q = {3:0.2f}".format(self, self.exemplar, self.strategy["offer"], self.strategy["accept"], currentRound))
-    
+            #if verbose:
+            #print("round {4}: {0} exploiting strategy from {1}: p = {2:0.2f}, q = {3:0.2f}".format(self, self.exemplar, self.strategy["offer"], self.strategy["accept"], currentRound))
+            if logging == True:
+                if latexTable == True:
+                    #lafile.write("\t& {0} & \\multicolumn{{2}}{{l}}{{ exploit {4} with $s_{{{7}}}: p = {5:0.4f}, q = {6:0.4f}$}} \\\ \n".format(self, self.id, self.strategy['offer'], self.strategy['accept'], self.exemplar, self.exemplar.strategy["offer"], self.exemplar.strategy["accept"], self.exemplar.id))
+                    lafile.write("\t& {0} & exploit {1} & \\\ \n".format(self, self.exemplar))
+                file.write("{0} exploiting strategy from {1}: p = {2:0.4f}, q = {3:0.4f}\n".format(self, self.exemplar, self.exemplar.strategy["offer"], self.exemplar.strategy["accept"], currentRound))
+            
     
     def proportional(self, currentRound):
         model = choice(self.neighbours)
@@ -131,29 +149,37 @@ class Agent:
         revSelf = self.fitness#np.mean(sum(self.revenue))#self.stratIncome)
         revOpp = model.fitness#np.mean(sum(model.revenue))#model.stratIncome)
               
-        changeProb = (revOpp - revSelf) / (2 * max(self.degree, model.degree))#len(self.neighbours), len(model.neighbours)))
+        changeProb = (revOpp - revSelf)# / (2 * max(self.degree, model.degree))#len(self.neighbours), len(model.neighbours)))
         
         if verbose:
             print("{0} revSelf: {1}, {2} revOpp: {3}, changeProb = {4}, k = {5}".format(self, revSelf, model, revOpp, changeProb, max(self.degree, model.degree)))#max(len(self.neighbours), len(model.neighbours))))
         if changeProb > 1.0:    
             raise ValueError("impossible changeprob")
+        prob = random.random()
         
-        if random.random() < changeProb:
+        if prob < changeProb:
             self.nextstrat = model.strategy
             if verbose:
                 print("{0} switch!".format(self))
+            if logging == True:
+                if latexTable == True:
+                    lafile.write("\t& {0} & exploit {1} & with $\\pi_{{{4}, {5}}} = {3:.4f}$\\\ \n".format(self, model, prob, changeProb, self.id, model.id))
+                file.write("{0} exploiting strategy from {1}: p = {2:0.4f}, q = {3:0.4f}\n".format(self, self.exemplar, self.exemplar.strategy["offer"], self.exemplar.strategy["accept"], currentRound))
             
             
     def fermi(self, currentRound):
         model = choice(self.neighbours)
         fermiProb = 1 / (1 + np.exp(-selectionIntensity * (model.fitness - self.fitness)))
-
-        if random.random() < fermiProb:
+        prob = random.random()
+        if prob < fermiProb:
             self.nextstrat = model.strategy
             if verbose:
-                print("{0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, self.fitness, model, model.fitness, fermiProb))
+                print("& {0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, self.fitness, model, model.fitness, fermiProb))
                 print("round {4}: {0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy, currentRound))
-
+            if logging == True:
+                if latexTable == True:
+                    lafile.write("\t& {0} & exploit {1} & with $\\pi_{{{4}, {5}}} = {3:.4f}$\\\ \n".format(self, model, prob, fermiProb, self.id, model.id))
+                file.write("{0} exploiting strategy from {1}: p = {2:0.4f}, q = {3:0.4f}\n".format(self, self.exemplar, self.exemplar.strategy["offer"], self.exemplar.strategy["accept"], currentRound))
 
     def comparisonMethods(self, argument):
         switcher = {
@@ -179,14 +205,42 @@ class Agent:
     def exploration(self):
         if random.random() < explore:
             self.nextstrat = self.randomise()
+            #print("{0} exploring and changing from {1} to {2}".format(self, self.strategy, self.nextstrat))
+            if logging == True:
+                if latexTable == True:
+                    #file.write("\t& {0} & $s_{{{1}}}=({2},{3})$ & exploring: new $p={4:.4f}$, $q={5:.4f}$\\\ \n".format(self, self.id, self.strategy['offer'], self.strategy['accept'], self.nextstrat['offer'], self.nextstrat['accept']))
+                    lafile.write("\t& {0} & exploring & new $p={1:.4f}$, $q={2:.4f}$\\\ \n".format(self, self.nextstrat['offer'], self.nextstrat['accept']))
+                file.write("{0} exploring from p={1:.4f}, q={2:.4f} to p={3:.4f}, q={4:.4f}\n".format(self, self.strategy['offer'], self.strategy['accept'], self.nextstrat['offer'], self.nextstrat['accept']))
+                    
+            self.strategy = self.nextstrat
             
-    
+    """        
+    def explorationtest(self):
+        if random.random() < 1:#explore:
+            strategy = {}
+            strategy["offer"] = 0.3#random.uniform(0, 1)#round(random.uniform(0, 1), 2)#choice(list(range(1,10,1)))/10
+            strategy["accept"] = 0.7#random.uniform(0, 1)
+            self.nextstrat = strategy
+            print("new strat {0}".format(self.nextstrat)) 
+            #print("{0} exploring and changing from {1} to {2}".format(self, self.strategy, self.nextstrat))
+            if logging == True:
+                if latexTable == True:
+                    #file.write("\t& {0} & $s_{{{1}}}=({2},{3})$ & exploring: new $p={4:.4f}$, $q={5:.4f}$\\\ \n".format(self, self.id, self.strategy['offer'], self.strategy['accept'], self.nextstrat['offer'], self.nextstrat['accept']))
+                    lafile.write("\t& {0} & exploring & new $p={1:.4f}$, $q={2:.4f}$\\\ \n".format(self, self.nextstrat['offer'], self.nextstrat['accept']))
+                file.write("{0} exploring from p={1:.4f}, q={2:.4f} to p={3:.4f}, q={4:.4f}\n".format(self, self.strategy['offer'], self.strategy['accept'], self.nextstrat['offer'], self.nextstrat['accept']))
+                    
+            self.strategy = self.nextstrat
+    """        
+            
     def noisify(self, oldstrategy):
         newstrategy = {}
         #ensure that p and q are in [0, 1]
-        p = min(max(oldstrategy["offer"] + np.random.uniform(-noise_e, noise_e), 0), 1.0)
-        q = min(max(oldstrategy["accept"] + np.random.uniform(-noise_e, noise_e), 0), 1.0)
-
+        alpha = noise_e/2
+        p_alpha = random.uniform(-alpha, alpha)
+        q_alpha = random.uniform(-alpha, alpha)
+        p = min(max(oldstrategy["offer"] + p_alpha, 0), 1)#random.uniform(-alpha, alpha), 0), 1.0)
+        q = min(max(oldstrategy["accept"] + q_alpha, 0), 1)#random.uniform(-alpha, alpha), 0), 1.0)
+        #file.write("p_alpha = {0:.5f}, q_alpha = {1:.5f}\n".format(p_alpha, q_alpha))
         newstrategy["offer"] = p
         newstrategy["accept"] = q
         
@@ -209,9 +263,7 @@ class Agent:
         
     def shareData(self):
         return(self.data)
-    
-    #def storeData(self):
-        
+            
     
     def shareStats(self):
         stats = [self.strategy['offer'], self.strategy['accept'], self.revenue]#sum(self.revenue)] # share stats every round #or use mean?
@@ -241,74 +293,44 @@ class Graph:
          self.graphs = []
          
          
-    def createGraph(self):
+    def createSFN(self):
         
         m_step = np.linspace(1, agentCount, simulations, endpoint=False)
-        p_step = np.linspace(0, 0.9, simulations)
         
-        for i in [0, 0.001, 0.01, 0.1, 1]:#np.arange(0, simulations, step = 100)): #[0, 0.001, 0.01, 0.1, 1]):
+        #if int(m_step[i]) < agentCount:
+        #    m = int(m_step[i])
+        #else:
+        #    m = (agentCount-1)
+        
+        m = 3#m_step[12]
+        
+        # --> nx.extended_barabasi_albert_graph?
+        SFN = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+        
+        SFNcharacteristics = Graph.graphCharacteristics(SFN)
+        
+        fnameSFN = "Barabasi-Albert_n{0}_sim{1}_m={2}".format(agentCount, simulations, m)
+        
+        #nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
+        
+        nx.write_gpickle(SFN, "Graphs/{0}.gpickle".format(fnameSFN))
+        
+        
+        #self.graphData[fnameSWN], self.graphData[fnameSFN] = SWNcharacteristics, SFNcharacteristics
+        self.graphData[fnameSFN] = SFNcharacteristics
+        
+        if showGraph:
+            fnameSFN = "Barabasi-AlbertV_n{0}_sim{1}_m={2}".format(agentCount, simulations, m)
             
-            p = i#p_step[i]
+            #nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
+            nx.draw_kamada_kawai(SFN, with_labels=True, edge_color = '#00a39c', node_color = '#ff6960', alpha=0.63, node_size = 200, width = 1)
+            plt.title('{0} m = {3:0.3f}, APL={4:0.3f}, CC = {5:0.3f}, SP = {6:0.3f})'
+                      .format('Barabàsi-Albert', i, simulations, m, gg.graphData[fnameSFN]['APL'], gg.graphData[fnameSFN]['CC'], gg.graphData[fnameSFN]['SPavg']))
+
+            plt.show()
+        self.graphs.append(SFN)
             
-            #if int(m_step[i]) < agentCount:
-            #    m = int(m_step[i])
-            #else:
-            #    m = (agentCount-1)
-            m = 3#m_step[12]
-            
-            # --> nx.extended_barabasi_albert_graph?
-            SFN = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
-            
-            if i == 0:
-                k = 2
-            else:
-                k = edgeDegree
-            
-            SWN = nx.connected_watts_strogatz_graph(agentCount, k, p) # small-world network characterised by low 
-            
-            SWNcharacteristics = Graph.graphCharacteristics(SWN)
-            SFNcharacteristics = Graph.graphCharacteristics(SFN)
-            
-            if i > 0:
-                while SWNcharacteristics['SPavg'] == .500:
-                    SWN = nx.connected_watts_strogatz_graph(agentCount, k, p)
-                    SWNcharacteristics = Graph.graphCharacteristics(SWN)
-                
-            
-            #self.char1.append(SWNcharacteristics)
-            #self.char2.append(SFNcharacteristics)
-            
-            fnameSWN = "Watts-StrogatzV{0}_n{1}_sim{2}_k={3}_p={4}".format(i, agentCount, simulations, k, p) # edgeDegree, p)
-            fnameSFN = "Barabasi-AlbertV{0}_n{1}_sim{2}_k={3}".format(i, agentCount, simulations, edgeDegree)
-            
-            #nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
-            #nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
-            
-            nx.write_gpickle(SWN, "Graphs/{0}.gpickle".format(fnameSWN))#"round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
-            nx.write_gpickle(SFN, "Graphs/{0}.gpickle".format(fnameSFN))#round{3}_exp={4:.2f}_random={5}.gpickle".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
-            
-            #if showGraph:
-            #    nx.draw(SWN, node_color='r', with_labels=True, alpha=0.53, width=1.5)
-            #    plt.title('{0} (simulation {1}/{2}, p = {3:0.2f}, APL={4:0.2f}, CC = {5:0.2f}, SP = {6:0.2f})'.format('Watts-Strogatz', i, simulations, p, SWNcharacteristics['APL'], SWNcharacteristics['CC'], SWNcharacteristics['SPavg']))
-            #    plt.show()
-            
-            self.graphData[fnameSWN], self.graphData[fnameSFN] = SWNcharacteristics, SFNcharacteristics #self.char1, self.char2
-            #print("data for {0}: \n{1}".format(fnameSWN, self.graphData[str(fnameSWN)]))
-            #print(SWN)
-            
-            if showGraph:
-                fnameSWN = "Watts-StrogatzV{0}_n{1}_sim{2}_k={3}_p={4}".format(i, agentCount, simulations, k, p)
-                
-                #nx.draw(graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
-                nx.draw_kamada_kawai(SWN, with_labels=True, edge_color = '#00a39c', node_color = '#ff6960', alpha=0.63, node_size = 200, width = 1)
-                plt.title('{0} (graph v.{1}/{2}, p = {3:0.3f}, APL={4:0.3f}, CC = {5:0.3f}, SP = {6:0.3f})'
-                          .format('Watts-Strogatz', i, simulations, p, gg.graphData[fnameSWN]['APL'], gg.graphData[fnameSWN]['CC'], gg.graphData[fnameSWN]['SPavg']))
-                                  #p_step[i], gg.graphData[fnameSWN]['APL'], gg.graphData[fnameSWN]['CC'], gg.graphData[fnameSWN]['SPavg']))
-                plt.show()  #note that v*2 is pragmatical since p_step is created with a step of 10 instead of 20!
-                
-            self.graphs.append(SWN)
-            
-        print("graphs created")
+        #print("graphs created")
     
         return(self.graphs, self.graphData)
             
@@ -324,6 +346,33 @@ class Graph:
                 Plot().measurePlot(key, x, gg.graphData, xlab)
         """
         
+    def createSWN(self, p):
+                
+        SWN = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p)
+        
+        SWNcharacteristics = Graph.graphCharacteristics(SWN)
+        
+        fnameSWN = "Watts-Strogatz_n{0}_k={2}_p={3}_APL={4}_CC={5}_SP={6}".format(agentCount, simulations, edgeDegree, p, SWNcharacteristics['APL'], SWNcharacteristics['CC'], SWNcharacteristics['SPavg'])
+        
+        #nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
+        nx.write_gpickle(SWN, "Graphs/Experiment 1/{0}.gpickle".format(fnameSWN))        
+        
+        self.graphData[fnameSWN] = SWNcharacteristics
+        
+        if showGraph:
+            #fnameSWN = "Watts-StrogatzV{0}_n{1}_sim{2}_k={3}_p={4}".format(i, agentCount, simulations, edgeDegree, p)
+            
+            nx.draw_kamada_kawai(SWN, with_labels=True, edge_color = '#00a39c', node_color = '#ff6960', alpha=0.63, node_size = 200, width = 1)
+            plt.title('{0}, p = {3:0.3f}\nAPL={4:0.3f}, CC = {5:0.3f}, SP = {6:0.3f})'
+                      .format('Watts-Strogatz', i, simulations, p, gg.graphData[fnameSWN]['APL'], gg.graphData[fnameSWN]['CC'], gg.graphData[fnameSWN]['SPavg']))
+                              #p_step[i], gg.graphData[fnameSWN]['APL'], gg.graphData[fnameSWN]['CC'], gg.graphData[fnameSWN]['SPavg']))
+            plt.show()
+        
+        #self.graphs.append(SWN)   
+        #print("graphs created")
+    
+        return(SWN, self.graphData[fnameSWN]) #self.graphs, self.graphData[fnameSWN])
+
         
     def graphCharacteristics(g):
         APL = nx.average_shortest_path_length(g)    # average of all shortest paths between any node couple
@@ -331,7 +380,6 @@ class Graph:
         SPgraph, SPtotal = Graph.structuralPower(g)
         SPtotal = [round(SP, 4) for SP in SPtotal]
         
-        # but which nodes??? adjust!
         charList = OrderedDict([('APL', APL), ('CC', clust), ('SPavg', SPgraph), ('SPnodes', SPtotal)])
         # for deg dist see https://networkx.github.io/documentation/stable/auto_examples/drawing/plot_degree_histogram.html
         return charList
@@ -405,47 +453,36 @@ class Population:
             agent.introduce()
             self.agents.append(agent)
             birth += 1
-            
+        if logging == True:
+            if latexTable == True:
+                lafile.write("\t &&& \\\ \n")          
         for agent in self.agents:
             agent.meetNeighbours(self.graph)
             
     def returnAgents(self):
         if updating == 1:
-            agentPoule = np.choice(self.agents, size=updateN, replace=False)
+            agentPoule = sample(self.agents, k=updateN)
             if verbose:
                 print("Agent(s) for updating: {0}".format(agentPoule))
         else:
             agentPoule = self.agents
-            
         return(agentPoule)
-        
-            
+               
     def killAgents(self):
-        Agent.agentID = 0
-        
+        Agent.agentID = 0   
         for agent in self.agents:
             agent.kill()
-
-
-        #for agent in self.agents:
-        #    print("this is the amount of neighbours for agent {0}: {1}".format(agent.id, len(agent.node)))
-        #nx.draw(self.graph, node_color='r', with_labels=True, alpha=0.53, width=1.5)
-        #plt.show()
-
 
            
 class ultimatumGame:
     
-    
     def __init__(self, graph):
         self.population = Population(graph)
-        self.data = {}
         self.graph = self.population.graph
         self.edges = self.graph.edges
         
         if edgeDegree >= agentCount:
             raise ValueError("Amount of edges per node cannot be equal to or greater than amount of agents")        
-    
     
     def game(self, proposer, responder, currentRound):         # the actual interaction between prop and resp
         if testing:
@@ -455,17 +492,16 @@ class ultimatumGame:
         
         offer = proposer.getStrategy()['offer']
         accept = responder.getStrategy()['accept']
-        
-        if offer > 1.0: #== 1.0:
+
+        if offer > 1.0:
             raise ValueError("{0} got offer strategy of 1.0 ({1})".format(proposer, offer))
-        if accept >1.0: #== 1.0:
+        if accept > 1.0:
             raise ValueError("{0} got accept strategy of 1.0({1})".format(responder, offer))
         
         if offer >= accept:
             success = 1
             payPro = 1 - offer
             payRes = offer
-        
         else:
             success = 0
             payPro = 0
@@ -474,14 +510,16 @@ class ultimatumGame:
                 print("Offer {0} ({1}) too low for acceptance {2} ({3})"
                       .format(offer, proposer, accept, responder))
         
-        self.edges[proposer.id, responder.id][currentRound].append([offer, accept, success])#['round {0}'.format(currentRound)]
+        #print("{0} p={1}, {2} q={3}, suc={4}".format(proposer, offer, responder, accept, success))
+        
+        self.edges[proposer.id, responder.id][currentRound].append([offer, accept, success])
         
         proposer.budgeting(payPro, "proposer", responder)
         responder.budgeting(payRes, "responder", proposer)
 
     
     
-    def play(self, sim):                              # selection of players and structure surrounding an interaction    
+    def play(self):                              # selection of players and structure surrounding an interaction    
         self.population.populate()
         
         struct = self.graph
@@ -490,6 +528,10 @@ class ultimatumGame:
         for n in range(rounds):
             if n+1 % 1000 == 0:
                 print("  == round {0} ==".format(n))
+            if logging == True:
+                if latexTable == True:
+                    lafile.write("\t{0}".format(n+1))
+                file.write("\n === R O U N D {0} ===\nagent 0 = ({1:.4f}, {2:.4f}); agent 1 = ({3:.4f}, {4:.4f})\n".format(n, self.population.agents[0].strategy['offer'], self.population.agents[0].strategy['accept'], self.population.agents[1].strategy['offer'], self.population.agents[1].strategy['accept']))
             
             for edge in self.edges:
                 players = edge
@@ -502,20 +544,44 @@ class ultimatumGame:
                     #responder = nodes[responders[j]]['agent']
                     if randomRoles:
                         random.shuffle(players)
-                    proposer = nodes[players[0]]['agent']
-                    responder = nodes[players[1]]['agent']
+                    proposer = nodes[players[i]]['agent']
+                    responder = nodes[players[i-1]]['agent']
                     self.game(proposer, responder, n)
-                        
+                
+                if logging == True:
+                    if latexTable == True:
+                        #file.write("\t& {0} & $s_{{{1}}}=({2:.4f},{3:.4f})$ & offer ${2:.4f}$ to {4} accept: ${5:.4f}$ success = {6} \\\ \n".format(proposer, proposer.id, proposer.strategy['offer'], proposer.strategy['accept'], responder, responder.strategy['accept'], success))
+                        lafile.write("\t& Agent {0} & Agent {1} & success = {2}\\% \\\ \n".format(edge[0], edge[1], (mean((self.edges[edge][n][0][-1], self.edges[edge][n][1][-1]))*100)))
+                
             for agent in self.population.agents:
-                agent.storeMoney()
+                agent.storeMoney(n)
+                if logging == True:
+                    if latexTable == True:
+                        lafile.write(" \t&{0} & $s_{{{1}}}=({2:.4f},{3:.4f})$ & $f_{{{1}}}={4:.4f}$, $u_{{{1}}}={5:.4f}$ \\\ \n".format(agent, agent.id, agent.strategy['offer'], agent.strategy['accept'], agent.fitness, agent.revenue))
+                        
+            if logging == True:
+                if latexTable == False:
+                    lafile.write("{0} fit: {1:.4f} pay: {4:.4f}, best {2} fit: {3:.4f} pay: {5:.4f}\n".format(self.population.agents[0], self.population.agents[0].fitness, self.population.agents[1], self.population.agents[1].fitness, self.population.agents[0].revenue, self.population.agents[1].revenue))
             
             if n != (rounds - 1):
                 self.updateAgents(n)
+                
+                if latexTable == True:
+                    lafile.write("\hline\n")
        
         # ==== end of rounds =====
         
-        agentdata = [agent.shareData() for agent in self.population.agents]
-        edgedata = [list(struct.get_edge_data(*edge).values()) for edge in struct.edges]
+        if dataStore == False:
+            agentdata = [[agent.shareData()[-1]] for agent in self.population.agents]
+            #agentdata = [[agentdata[ag][-1]] for ag in range(agentCount)]
+            edgedata =  np.zeros((len(edgeList), 1, 2, 3), dtype='float16')
+        else:
+            agentdata = [agent.shareData() for agent in self.population.agents]
+            edgedata = [list(struct.get_edge_data(*edge).values()) for edge in struct.edges]
+        
+        #print("see here {0}".format(np.shape(agentdata)))
+        #print("values for p: {0} \nvalues for q: {1}".format(np.array(agentdata).T[0][-1], np.array(agentdata).T[1][-1]))
+        
         
         return(agentdata, edgedata)
     
@@ -530,6 +596,9 @@ class ultimatumGame:
             agent.changeStrat()
         
         for agent in self.population.agents:
+            #if agent == self.population.agents[0] and n == 21:
+            #    agent.explorationtest()
+            #if n > 50:
             agent.exploration()
             agent.clear()
 
@@ -564,30 +633,32 @@ class Plot:
         plt.xlabel('rounds (n)')
         plt.show()
                
-
     
 class Simulation:
     
     def __init__(self):
-        self.data = np.zeros((rounds, agentCount, simulations), dtype=float) # n of rounds, n of agents, n of values, amount of sims
         self.finalPlot = Plot()
-        
     
     def run(self):        
-        gameTest = np.zeros((agentCount, rounds, 3, simulations))
-        edgeTest = np.zeros((len(edgeList), rounds, 2, 3, simulations))
-                
-        def playUG(sim):
+        if dataStore == False:
+            gameTest = np.zeros((agentCount, 1, 3, simulations))
+            edgeTest = np.zeros((len(edgeList), 1, 2, 3, simulations), dtype='float16')
+        else:
+            gameTest = np.zeros((agentCount, rounds, 3, simulations), dtype='float16')
+            edgeTest = np.zeros((len(edgeList), rounds, 2, 3, simulations), dtype='float16')
+        
+        def playUG():
             print('\n=== simulation {0} ==='.format(sim))
             UG = ultimatumGame(graph)
-            gameTest[:, :, :, sim], edgeTest[:, :, :, :, sim] = UG.play(sim)
+            gameTest[:, :, :, sim], edgeTest[:, :, :, :, sim] = UG.play()
             UG.population.killAgents()
                                     
         for sim in range(simulations):
-            playUG(sim)
+            playUG()
         
         print(np.shape(gameTest))
         print(np.shape(edgeTest))
+        
         gameTest = gameTest.mean(axis=3)
         edgeTest = edgeTest.mean(axis=4)
         
@@ -618,8 +689,8 @@ def dataHandling(gameTest, edgeTest):
     gameData.columns = gameData.columns.map(str)
     edgeData.columns = edgeData.columns.map(str)
     
-    gameData.to_parquet("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.4f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}_V={9}.parquet".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN, i))
-    edgeData.to_parquet("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.4f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}_V={9}.parquet".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN, i))
+    gameData.to_parquet("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.4f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.parquet".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN))
+    edgeData.to_parquet("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.4f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.parquet".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN))
     
 
 def generateImg(graph, g, positions, gamedata, edgedata, i):
@@ -649,7 +720,6 @@ def generateImg(graph, g, positions, gamedata, edgedata, i):
             raise ValueError("Averages incorrect")
         return(avgOffer, varOffer, avgAccept, varAccept, avgSucc)        
 
-    
     def size_calc():
         size_map = []
         
@@ -666,7 +736,6 @@ def generateImg(graph, g, positions, gamedata, edgedata, i):
             size_map.append(size_list)
         return(size_map)
             
-    
     def nodeCol_calc():
         # agents increase in colour as their distance to equal splits decreases relative to others
         cmap = cm.get_cmap('RdYlGn')            
@@ -674,31 +743,25 @@ def generateImg(graph, g, positions, gamedata, edgedata, i):
         color = [[cmap(norm(p)) for p in p_list.T[rnd]] for rnd in range(rounds)]             
         return(color)
     
-    
     def edgeCol_calc():
         edgecol = []
-        edgewidth = []
-        
+        edgewidth = []   
         for currentRound in range(rounds):
             edgetemp = []
-            coltemp = []
-            
+            coltemp = []     
             for edge in edgedata[currentRound]:
-                coltemp.append(sum(edge.T[-1]))
-                
+                coltemp.append(sum(edge.T[-1]))         
                 if sum(edge.T[-1]) == 2:
                     edgetemp.append(4)
                 elif sum(edge.T[-1]) == 1:
                     edgetemp.append(2.7)
                 else:
-                    edgetemp.append(1.5)  
-            
+                    edgetemp.append(1.5)        
             edgewidth.append(edgetemp)   
             if edgecol:
                 edgecol.append(np.add(edgecol[-1], coltemp))
             else:
-                edgecol.append(coltemp)
-                 
+                edgecol.append(coltemp)          
         return(edgecol, edgewidth)    
     
     # =============================================================================
@@ -739,22 +802,20 @@ def generateImg(graph, g, positions, gamedata, edgedata, i):
         ax2.remove()
         ax3.remove()
         axplot = fig.add_subplot(gs[0, 1:3])
-        
-        xval = np.arange(0, rounds, 1)
-        
+        xval = np.arange(0, rounds, 1)        
         nx.draw_networkx(graph, pos = positions, ax=axgraph, edge_color = edgecol, edge_cmap = plt.cm.coolwarm, node_color = nodecol, edge_vmin=0, edge_vmax=(2*rounds), alpha = 0.53, node_size = 1200, width = edgesize, with_labels=True, font_size = 30)
-        
         
         # used to be ax2
         axplot.set_ylim([0, 1])
         axplot.set_xlim([0, rounds-1])
-        axplot.set_xticks(np.append(np.arange(0, rounds, step=math.floor(rounds/20)), rounds-1))
+        axplot.set_xticks(np.append(np.arange(1, rounds, step=math.floor(rounds/20)), rounds))
         fairline = axplot.axhline(0.5, color="black", ls='--', alpha=0.4)
         axplot.yaxis.grid()
-        
+        axplot.set_xlabel('round')
+
         offerline, = axplot.plot(xval, offerlist, lw=1, color='red', label = 'average p', alpha=0.8)
         acceptline, = axplot.plot(xval, acceptlist, lw=1, color='midnightblue', label = 'average q', alpha=0.8)
-        successline, = axplot.plot(xval, successlist, lw=1, color='lime', label = 'ratio successes', alpha=0.8)
+        successline, = axplot.plot(xval, successlist, lw=2.5, color='lime', label = 'ratio successes', alpha=0.6)
         axplot.fill_between(xval, offerlist - offervar, offerlist + offervar, alpha=0.3, color='red')
         axplot.fill_between(xval, acceptlist - acceptvar, acceptlist + acceptvar, alpha=0.3, color='midnightblue')
         axplot.legend()
@@ -789,7 +850,253 @@ def generateImg(graph, g, positions, gamedata, edgedata, i):
         #plt.close(fig)
     
     save_image()
-       
+
+#%%
+    
+def degreeplot(totaldat, degrees):
+    totalp = []
+    totalq = []
+    totalAPL = []
+    totalCC = []
+    totalSP = []
+    
+    degreeperc = [round(d/100.0, 2) for d in degrees]
+    
+    for i in totaldat:
+        gamedata, edgedata, gdata = i
+        
+        *stratlist, u_list = gamedata.T
+        p_list, q_list = stratlist
+        totalp.append(np.mean(p_list))
+        totalq.append(np.mean(q_list))
+        totalAPL.append(gdata['APL'])
+        totalCC.append(gdata['CC'])
+        totalSP.append(gdata['SPavg'])
+    
+
+    b = [totalp, totalq, totalAPL, totalCC, totalSP]
+    savestats = pd.DataFrame(np.array(b).T)
+    savestats.to_csv("Data/degreestatsN=100.parquet", header=None, index=None)
+    
+    #print("multiplot output \n{0}\n{1}".format(totalp, gdata))
+    
+    #fig, (ax1, ax2) = plt.subplots(2, 1, figsize = (15,10))
+    fig = plt.figure(figsize = (15,10))
+    ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(212)
+    
+    ax1.set_ylim([0,0.5])
+    #ax1.set_xlim([degrees[0], degrees[-1]])
+    ax1.plot(degreeperc, totalp, 'r', label = 'average p')
+    ax1.plot(degreeperc, totalq, 'b', label = 'average q')
+    ax1.legend()
+    ax1.set_xlabel('degree (relative to total N)')
+    ax1.set_ylabel('convergence values after 5000 rounds')
+    vals = ax1.get_xticks()
+    ax1.set_xticklabels(['{:.0f}%'.format(val*100) for val in vals])
+    #plt.plot(totalp, 'r', totalq, 'b')
+    print(degreeperc)
+    ax2col = 'g'
+    ax3col = 'steelblue'
+    ax4col = 'm'
+    ax3 = ax2.twinx()
+    ax4 = ax2.twinx()
+
+    p1, = ax2.plot(degreeperc, totalAPL, marker = '^', color = ax2col,  label = 'APL')
+    p2, = ax3.plot(degreeperc, totalCC, marker = '*', color = ax3col, label = 'CC')
+    p3, = ax4.plot(degreeperc, totalSP, marker = '.', color = ax4col, label = 'graph SP')
+    
+    #ax2.set_xlim([degrees[0], degrees[-1]])
+    ax2.set_xlabel('degree relative to total N')
+    ax2.set_ylabel('Average Path Length', color=ax2col)
+    ax2.tick_params(axis='y', labelcolor=ax2col)
+    vals2 = ax2.get_xticks()
+    ax2.set_xticklabels(['{:.0f}%'.format(val*100) for val in vals2])
+    
+    ax3.set_ylabel('Clustering Coefficient', color=ax3col)
+    ax3.tick_params(axis='y', labelcolor=ax3col)
+    ax3.set_yticks([i/100 for i in range(0, 110, 20)])
+    
+    ax4.set_ylabel('Average Structural Power in graph', color=ax4col)
+    ax4.tick_params(axis='y', labelcolor=ax4col)
+    ax4.set_yticks([i/100 for i in range(0, 110, 20)])
+    ax4.spines["right"].set_position(("axes", 1.057))
+    
+    lines = [p1, p2, p3]
+    ax2.legend(lines, [l.get_label() for l in lines])
+    
+    #plt.plot(totalAPL, 'g^',  totalCC, 'y*', totalSP, 'm.')
+    
+
+def betaplot(totaldat, betalist):
+    totalp = []
+    totalq = []
+    totalAPL = []
+    totalCC = []
+    totalSP = []
+    """
+    degreeperc = [round(d/100.0, 2) for d in degrees]
+    
+    for i in totaldat:
+        gamedata, edgedata, gdata = i
+        
+        *stratlist, u_list = gamedata.T
+        p_list, q_list = stratlist
+        totalp.append(np.mean(p_list))
+        totalq.append(np.mean(q_list))
+        totalAPL.append(gdata['APL'])
+        totalCC.append(gdata['CC'])
+        totalSP.append(gdata['SPavg'])
+    
+
+    b = [totalp, totalq, totalAPL, totalCC, totalSP]
+    savestats = pd.DataFrame(np.array(b).T)
+    savestats.to_csv("Data/degreestatsN=100.parquet", header=None, index=None)
+    
+    #print("multiplot output \n{0}\n{1}".format(totalp, gdata))
+    
+    #fig, (ax1, ax2) = plt.subplots(2, 1, figsize = (15,10))
+    fig = plt.figure(figsize = (15,10))
+    ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(212)
+    
+    ax1.set_ylim([0,0.5])
+    #ax1.set_xlim([degrees[0], degrees[-1]])
+    ax1.plot(degreeperc, totalp, 'r', label = 'average p')
+    ax1.plot(degreeperc, totalq, 'b', label = 'average q')
+    ax1.legend()
+    ax1.set_xlabel('degree (relative to total N)')
+    ax1.set_ylabel('convergence values after 5000 rounds')
+    vals = ax1.get_xticks()
+    ax1.set_xticklabels(['{:.0f}%'.format(val*100) for val in vals])
+    #plt.plot(totalp, 'r', totalq, 'b')
+    print(degreeperc)
+    ax2col = 'g'
+    ax3col = 'steelblue'
+    ax4col = 'm'
+    ax3 = ax2.twinx()
+    ax4 = ax2.twinx()
+
+    p1, = ax2.plot(degreeperc, totalAPL, marker = '^', color = ax2col,  label = 'APL')
+    p2, = ax3.plot(degreeperc, totalCC, marker = '*', color = ax3col, label = 'CC')
+    p3, = ax4.plot(degreeperc, totalSP, marker = '.', color = ax4col, label = 'graph SP')
+    
+    #ax2.set_xlim([degrees[0], degrees[-1]])
+    ax2.set_xlabel('degree relative to total N')
+    ax2.set_ylabel('Average Path Length', color=ax2col)
+    ax2.tick_params(axis='y', labelcolor=ax2col)
+    vals2 = ax2.get_xticks()
+    ax2.set_xticklabels(['{:.0f}%'.format(val*100) for val in vals2])
+    
+    ax3.set_ylabel('Clustering Coefficient', color=ax3col)
+    ax3.tick_params(axis='y', labelcolor=ax3col)
+    ax3.set_yticks([i/100 for i in range(0, 110, 20)])
+    
+    ax4.set_ylabel('Average Structural Power in graph', color=ax4col)
+    ax4.tick_params(axis='y', labelcolor=ax4col)
+    ax4.set_yticks([i/100 for i in range(0, 110, 20)])
+    ax4.spines["right"].set_position(("axes", 1.057))
+    
+    lines = [p1, p2, p3]
+    ax2.legend(lines, [l.get_label() for l in lines])
+    """
+    
+    
+    
+def SWNplot(totgraphdata):
+    
+    totalAPL = []
+    totalCC = []
+    totalSP = []
+    #totalCC = 
+    #totalSP = 
+    print(totgraphdata[0])
+    
+    for dat in totgraphdata:
+        #print(dat)
+        #print(dat['APL'])
+        totalAPL.append(dat['APL'])
+        totalCC.append(dat['CC'])
+        totalSP.append(dat['SPavg'])
+    
+    print("length apl {0}".format(len(totalAPL)))
+    
+    print(min(totalCC), max(totalCC))
+    
+    CCstep20 = (max(totalCC)-min(totalCC))/20
+    
+    x_vals = np.arange(0, 1, 0.005)
+
+    def find_nearest(arr, steps):
+        cc_list = []
+        prob_list = []
+        
+        CCstep = (max(totalCC) - min(totalCC)) / steps
+
+        
+        for i in range(steps + 1):
+            value = max(totalCC) - CCstep * (i)
+            idx = np.abs(np.array(arr) - value).argmin()
+            
+            cc_list.append(totalCC[idx])
+            prob_list.append(x_vals[idx])
+            
+            print("CC: {0:.4f} for rewiring prob: {1:.4f}".format(cc_list[-1], prob_list[-1]))
+            
+        return(cc_list, prob_list)
+        
+    testcc, testprobs = find_nearest(totalCC, 20)
+        
+    print("test for these values: \n{0}\nand these\n{1}".format(testcc, testprobs))    
+    
+    
+    fig = plt.figure(figsize = (15,7))
+    ax1 = fig.add_subplot(111)
+    
+    ax2 = ax1.twinx()
+    ax3 = ax1.twinx()
+    
+    l1, = ax1.plot(x_vals, totalAPL, marker = '^', color='g', label = 'APL')
+    l2, = ax2.plot(x_vals, totalCC, marker = '*', color='steelblue', label = 'CC')
+    l3, = ax3.plot(x_vals, totalSP, marker = '.', color='m', label = 'SP')
+    
+    ax1.set_xlabel('rewiring probability')    
+    ax1.set_xscale('symlog', linthreshx=0.00999)
+    ax1.set_xticks([0, 0.01, 0.1, 1])
+    ax1.set_xlim(xmin=-0.0001, xmax=1.05)
+    ax1.get_xaxis().set_major_formatter(tck.ScalarFormatter())
+    
+    wherelist = []
+    for xval in testprobs:
+        where = np.where(x_vals == xval)[0][0]
+        wherelist.append(where)
+        ax1.axvline(x=xval, ymax = totalCC[where], linestyle = '-', linewidth = 0.5, color='steelblue')
+    
+    ax1.set_ylabel('Average Path Length', color = 'g')
+    ax1.tick_params(axis='y', labelcolor='g')
+    ax1.set_ylim([0, 7])
+    
+    ax2.set_ylabel('Clustering Coefficient', color='steelblue')
+    ax2.tick_params(axis='y', labelcolor='steelblue')
+    ax2.set_ylim([0, 1])
+    ax2.axhline(y=totalCC[0], linestyle = ':', color='steelblue', linewidth = 1)
+    
+    ax3.set_ylabel('Average Structural Power in graph', color='m')
+    ax3.tick_params(axis='y', labelcolor='m')
+    ax3.set_ylim([0, 1])
+    ax3.spines["right"].set_position(("axes", 1.06))
+    ax3.axhline(y=totalSP[0], linestyle = ':', color='m', linewidth = 1)
+        
+    lines = [l1, l2, l3]
+    ax1.legend(lines, [l.get_label() for l in lines])
+        
+    #b = [totalAPL, totalCC, totalSP]
+    #savestats = pd.DataFrame(np.array(b).T)
+    #savestats.to_csv("Data/clusteringstatsN=100.parquet", header=None, index=None)
+    pd.DataFrame(testprobs).to_csv("Data/testprobabilitiesN=100.parquet", header=None, index=None)
+    pd.DataFrame(testcc).to_csv("Data/testCCN=100.parquet", header=None, index=None)
+
+
     # %%
     # either use gameAna['graphtype']['sim']['agent(s)'][row:row+1] or gameAna[loc], see https://stackoverflow.com/questions/53927460/select-rows-in-pandas-multiindex-dataframe
     
@@ -803,10 +1110,10 @@ if __name__ == '__main__':
     # HYPERPARAM
     # =============================================================================
     
-    simulations = 1
-    rounds = 2000   
-    agentCount = 10
-    edgeDegree = 5
+    simulations = 50
+    rounds = 10000
+    agentCount = 60
+    edgeDegree = 4
     
     selectionStyle = "Fermi"      # 0: unconditional, 1: proportional, 2: Fermi
     selectionIntensity = 10 # the bèta in the Fermi-equation
@@ -817,61 +1124,117 @@ if __name__ == '__main__':
     # GAME SETTINGS
     # =============================================================================
     
-    randomRoles = False     # if false, focal agent is assigned role randomly
+    randomRoles = False  # if false, focal agent is assigned role randomly
   
     noise = True        # noise implemented as [strategy to exploit] ± noise_e 
-    noise_e = 0.005 #actually 0.01 since this is "r", not diam
+    noise_e = 0.01 
     
     updating = 0            # 0 : all agents update; 1 : at random (n) agents update
-    updateN = 10
+    updateN = 1
     
     testing = False
-    showGraph = True
+    showGraph = False
+    
+    logging = False
+    latexTable = False
+    
+    dataStore = False
     
     verbose = False
     
     graphType = ['Watts-Strogatz']
     
-    gg = Graph()
-    graphs, gdata = gg.createGraph()
+    #gg = Graph()
+    #graphs, gdata = gg.createGraph()
+    
+    #graph = nx.complete_graph(agentCount)
     
     totaldata = []
     times = []
-    for selectionStyle in ['Fermi']:#'unconditional', 'proportional', 'Fermi']:   
-        #for explore in [0.001]:#, 0.005, 0.01]:#np.arange(0.001, 0.010, step = 0.5):#0.01, 0.08, step=0.02):
-            #for updateN in [1, 5, 10]:
+    degrees = []
+    
+    #gg = Graph()
+    #graphs, gdata = gg.createGraph()
+    
+# =============================================================================
+#     totalgraphdata = []
+#     realizations = 100
+#     for p in np.arange(0, 1, 0.005):
+#         
+#         print('commence p = {0}'.format(p))
+#         interim = {key: 0 for key in ('APL', 'CC', 'SPavg')}
+#         for real in range(realizations):
+#             _, gdata = gg.createSWN(p)
+# 
+#             for key, value in gdata.items():
+#                 if key != 'SPnodes':
+#                     interim[key] += value
+#         
+#         for key, value in interim.items():
+#             interim[key] = (value/realizations)
+#         
+#         totalgraphdata.append(interim)
+#     
+#     SWNplot(totalgraphdata)
+#     
+# =============================================================================
+    betaList = []
+    
+    for selectionIntensity in [10, 20, 30]:
         
-        for i, graph in enumerate(graphs[:1]):
-            # for type of network...
-            g = 'Watts-Strogatz'
-            keys = list(gdata.keys())
-            i = 1
-            positions = nx.spring_layout(graph)
-            #read = open("Graphs/{0}V{1}_n{2}_sim{3}_k={4}_p={5}.gpickle".format(g, i, agentCount, simulations, k, p), 'rb')#p_step[i]), 'rb')
-            #graph = nx.read_gpickle(read)
-            
-            edgeList = [str(edge) for edge in graph.edges]
-            agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
-            
-            if len(graph) != agentCount:
-               raise ValueError("agents incorrectly replaced")
-            
-            if verbose:
-                    print("characteristics of {0}({1}): \n{2}".format(g, i, gg.graphData[keys[0]]))
-            
-            print("{0} {1} {2}".format(selectionStyle, explore, updateN))
-            
-            start = process_time()
-            
-            gamedat, edgedat = Simulation().run()
-            totaldata.append((gamedat, edgedat))
-            generateImg(graph, g, positions, gamedat, edgedat, i)
-            
-            stop = process_time()
-            times.append(stop-start)
-            #dataHandling(gamedat, edgedat)
-
-    print("process times for previous run: {0}".format(times))
+        print("current run: beta = {0}".format(selectionIntensity))
+        betaList.append(selectionIntensity)
+        
+        p = 0.1
+        
+        gg = Graph()
+        graph, gdata = gg.createSWN(p)
+        
+        #graph = graphs[0]
+        g = 'Watts-Strogatz'
+        
+        positions = nx.kamada_kawai_layout(graph)
+        #read = open("Graphs/{0}V{1}_n{2}_sim{3}_k={4}_p={5}.gpickle".format(g, i, agentCount, simulations, k, p), 'rb')#p_step[i]), 'rb')
+        #graph = nx.read_gpickle(read)
+        
+        edgeList = [str(edge) for edge in graph.edges]
+        agentList = np.array(["Agent %d" % agent for agent in range(0,agentCount)])
+        
+        if len(graph) != agentCount:
+           raise ValueError("agents incorrectly replaced")
+        
+        start = process_time()
+        
+# =============================================================================
+#         if logging == True:
+#             file=open("Logs/{0}V{1}_n{2}_round{3}_exp={4:.3f}_noise={10}_random={5}_select={6}_beta={7}_updating={8}_updateN={9}.txt".format(g, i, agentCount, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN, noise_e), 'w+')
+#         if latexTable == True:
+#             lafile=open("Latex/{0}V{1}_n{2}_round{3}_exp={4:.3f}_noise={10}_random={5}_select={6}_beta={7}_updating={8}_updateN={9}.txt".format(g, i, agentCount, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN, noise_e), 'w+')
+# =============================================================================
+      
+        gamedat, edgedat = Simulation().run() 
+        totaldata.append((gamedat[-1], edgedat[-1], *list(gdata.values())))
+        #generateImg(graph, g, positions, gamedat, edgedat, i)
+                
+# =============================================================================
+#         if logging == True:
+#             file.close()
+#         if latexTable == True:
+#             lafile.close()
+# =============================================================================
+        
+        stop = process_time()
+        times.append(stop-start)
+        
+        if dataStore == True:
+            dataHandling(gamedat, edgedat)
+    
+    betaplot(totaldata, betaList)
+    #degreeplot(totaldata, degrees)
+    
+    print("average process time: {0} s\ntotal process time: {1} s\nall process times: {2}".format(mean(times), sum(times), times))
+    
+    
 #%%
 """
 simlist = [
