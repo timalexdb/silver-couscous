@@ -139,6 +139,7 @@ class Agent:
             if verbose:
                 print("& {0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, self.fitness, model, model.fitness, fermiProb))
                 print("round {4}: {0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy, currentRound))
+        #return(model.fitness - self.fitness)
 
     def comparisonMethods(self, argument):
 # =============================================================================
@@ -377,7 +378,8 @@ class ultimatumGame:
         self.population = Population(graph)
         self.graph = graph
         self.edges = list(self.graph.edges)
-        self.edgeDict = {key : [] for key in self.edges}
+        #self.edgeDict = {key : [] for key in self.edges}
+        self.edgeList = []
         
         if edgeDegree >= agentCount:
             raise ValueError("Amount of edges per node cannot be equal to or greater than amount of agents")
@@ -423,15 +425,11 @@ class ultimatumGame:
                     
                     #if dataStore == True:
                     #self.edgeDict[self.edges[i]].append([offer, accept, success])
+                    #self.edgeList.append([offer, accept, success])
                     
                     proposer.revenue += payPro
                     responder.revenue += payRes                    
-                
-#                if logging == True:
-#                    if latexTable == True:
-                        #file.write("\t& {0} & $s_{{{1}}}=({2:.4f},{3:.4f})$ & offer ${2:.4f}$ to {4} accept: ${5:.4f}$ success = {6} \\\ \n".format(proposer, proposer.id, proposer.strategy['offer'], proposer.strategy['accept'], responder, responder.strategy['accept'], success))
-                        #lafile.write("\t& Agent {0} & Agent {1} & success = {2}\\% \\\ \n".format(edge[0], edge[1], (mean((self.edgedict[edge][n][0][-1], self.edgedict[edge][n][1][-1]))*100)))
-                
+                              
             for agent in self.agents:
 # =============================================================================
 #                 # agents calculate income and fitness; faster than agent.storeMoney()
@@ -443,17 +441,10 @@ class ultimatumGame:
                     raise ValueError("fitness no bueno chef, f = {0}".format(self.fitness))
                 if dataStore == True or n == rounds-1:
                     agent.data.append([agent.strategy['offer'], agent.strategy['accept'], income])
-                #print("{0} revenue: {1}, sI: {2}, sI-mean: {3}, fit: {4}, K: {5}".format(self, self.revenue, self.stratIncome, np.mean(self.stratIncome), self.fitness, len(self.neighbours)))
-                
-#            if logging == True:
-#                if latexTable == True:
-                    #lafile.write("{0} fit: {1:.4f} pay: {4:.4f}, best {2} fit: {3:.4f} pay: {5:.4f}\n".format(self.population.agents[0], self.population.agents[0].fitness, self.population.agents[1], self.population.agents[1].fitness, self.population.agents[0].revenue, self.population.agents[1].revenue))
             
             if n != (rounds - 1):
                 self.updateAgents(n)
-                
-#                if latexTable == True:
-#                    lafile.write("\hline\n")
+
        
         # ==== end of rounds =====
         
@@ -480,6 +471,22 @@ class ultimatumGame:
         for agent in agentPoule:
             #agent.updateStrategy(n)
             agent.fermi(n)
+            
+# =============================================================================
+#             #                 I N     P R O G R E S S
+#             # fermi returns agent model.fitness - agent.fitness. store these in np.array
+#             # then calculate fermiprob for all values in array (vectorised)
+#             # then create array of rand vals and take all values in fermi-array sub prob
+#             # then mask with agentPoule and take only those agents for which value over 0
+#             # then update those agents' nextstrategy with modelstrategy
+# =============================================================================
+            
+        #fermiValues = 1 / (1 + np.e**(-selectionIntensity * np.array((agent.fermi(n) for agent in agentPoule))))
+        #updateList = fermiValues - np.random.rand(len(agentPoule))
+        #for agent in agentPoule[updateList > 0]]
+        #prob = self.randomList[n]
+        #prob = next(self.randomgen)
+        
             
         for agent in agentPoule:
             if agent.strategy != agent.nextstrat:
