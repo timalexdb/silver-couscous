@@ -103,13 +103,6 @@ class Agent:
         self.findExemplar()
         self.nextstrat = self.exemplar.strategy
         
-        if self != self.exemplar:
-            if logging == True:
-                if latexTable == True:
-                    #lafile.write("\t& {0} & \\multicolumn{{2}}{{l}}{{ exploit {4} with $s_{{{7}}}: p = {5:0.4f}, q = {6:0.4f}$}} \\\ \n".format(self, self.id, self.strategy['offer'], self.strategy['accept'], self.exemplar, self.exemplar.strategy["offer"], self.exemplar.strategy["accept"], self.exemplar.id))
-                    lafile.write("\t& {0} & exploit {1} & \\\ \n".format(self, self.exemplar))
-                file.write("{0} exploiting strategy from {1}: p = {2:0.4f}, q = {3:0.4f}\n".format(self, self.exemplar, self.exemplar.strategy["offer"], self.exemplar.strategy["accept"], currentRound))
-            
     
     def proportional(self, currentRound):
 # =============================================================================
@@ -128,10 +121,6 @@ class Agent:
             self.nextstrat = model.strategy
             if verbose:
                 print("{0} switch!".format(self))
-            if logging == True:
-                if latexTable == True:
-                    lafile.write("\t& {0} & exploit {1} & with $\\pi_{{{4}, {5}}} = {3:.4f}$\\\ \n".format(self, model, prob, changeProb, self.id, model.id))
-                file.write("{0} exploiting strategy from {1}: p = {2:0.4f}, q = {3:0.4f}\n".format(self, model, model.strategy["offer"], model.strategy["accept"], currentRound))
             
             
     def fermi(self, currentRound):
@@ -150,11 +139,6 @@ class Agent:
             if verbose:
                 print("& {0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, self.fitness, model, model.fitness, fermiProb))
                 print("round {4}: {0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy, currentRound))
-            if logging == True:
-                if latexTable == True:
-                    lafile.write("\t& {0} & exploit {1} & with $\\pi_{{{4}, {5}}} = {3:.4f}$\\\ \n".format(self, model, prob, fermiProb, self.id, model.id))
-                file.write("{0} exploiting strategy from {1}: p = {2:0.4f}, q = {3:0.4f}\n".format(self, self.exemplar, self.exemplar.strategy["offer"], self.exemplar.strategy["accept"], currentRound))
-
 
     def comparisonMethods(self, argument):
 # =============================================================================
@@ -409,13 +393,7 @@ class ultimatumGame:
         playList = [[self.agents[node] for node in edge] for edge in self.edges]
 
         for n in range(rounds):
-            
-            if logging == True:
-                if latexTable == True:
-                    lafile.write("\t{0}".format(n+1))
-                file.write("\n === R O U N D {0} ===\nagent 0 = ({1:.4f}, {2:.4f}); agent 1 = ({3:.4f}, {4:.4f})\n"
-                           .format(n, self.population.agents[0].strategy['offer'], self.population.agents[0].strategy['accept'], self.population.agents[1].strategy['offer'], self.population.agents[1].strategy['accept']))
-            
+                       
             for i, players in enumerate(playList):
                 
                 for i in range(2):
@@ -690,7 +668,6 @@ def generateImg(graph, g, positions, gamedata, edgedata, i):
         axgraph = fig.add_subplot(gs[:2, 0])
         fig.colorbar(cm.ScalarMappable(cmap=cm.get_cmap('RdYlGn')), ax=axgraph)
         
-        gs2 = ax2.get_gridspec()
         ax2.remove()
         ax3.remove()
         axplot = fig.add_subplot(gs[0, 1:3])
@@ -701,7 +678,7 @@ def generateImg(graph, g, positions, gamedata, edgedata, i):
         axplot.set_ylim([0, 1])
         axplot.set_xlim([0, rounds-1])
         axplot.set_xticks(np.append(np.arange(1, rounds, step=math.floor(rounds/20)), rounds))
-        fairline = axplot.axhline(0.5, color="black", ls='--', alpha=0.4)
+        axplot.axhline(0.5, color="black", ls='--', alpha=0.4)
         axplot.yaxis.grid()
         axplot.set_xlabel('round')
 
@@ -776,7 +753,6 @@ def degreeplot(totaldat, degrees):
     ax2 = fig.add_subplot(212)
     
     ax1.set_ylim([0,0.5])
-    #ax1.set_xlim([degrees[0], degrees[-1]])
     ax1.plot(degreeperc, totalp, 'r', label = 'average p')
     ax1.plot(degreeperc, totalq, 'b', label = 'average q')
     ax1.legend()
@@ -784,8 +760,6 @@ def degreeplot(totaldat, degrees):
     ax1.set_ylabel('convergence values after 5000 rounds')
     vals = ax1.get_xticks()
     ax1.set_xticklabels(['{:.0f}%'.format(val*100) for val in vals])
-    #plt.plot(totalp, 'r', totalq, 'b')
-    print(degreeperc)
     ax2col = 'g'
     ax3col = 'steelblue'
     ax4col = 'm'
@@ -796,7 +770,6 @@ def degreeplot(totaldat, degrees):
     p2, = ax3.plot(degreeperc, totalCC, marker = '*', color = ax3col, label = 'CC')
     p3, = ax4.plot(degreeperc, totalSP, marker = '.', color = ax4col, label = 'graph SP')
     
-    #ax2.set_xlim([degrees[0], degrees[-1]])
     ax2.set_xlabel('degree relative to total N')
     ax2.set_ylabel('Average Path Length', color=ax2col)
     ax2.tick_params(axis='y', labelcolor=ax2col)
@@ -814,9 +787,7 @@ def degreeplot(totaldat, degrees):
     
     lines = [p1, p2, p3]
     ax2.legend(lines, [l.get_label() for l in lines])
-    
-    #plt.plot(totalAPL, 'g^',  totalCC, 'y*', totalSP, 'm.')
-    
+        
 def ex1plot(totaldat, probs):
 
     totalp = []
@@ -856,13 +827,9 @@ def ex1plot(totaldat, probs):
             stratStyles[key].append(lab[i+1]/agentCount)    
     b = [totalp, totalq, stratStyles['altruist'], stratStyles['demand'], stratStyles['sgpn'], stratStyles['exploit']]
     
-    print(np.shape(totalp))
-    print(np.shape(tot_labels))
     savestats = pd.DataFrame(np.array(b).T)
     savestats.to_csv("Data/degreestatsN=100.parquet", header=None, index=None)
-    
-    #print("multiplot output \n{0}\n{1}".format(totalp, gdata))
-    
+        
     fig = plt.figure(figsize = (15,10))
     ax1 = fig.add_subplot(211)
     ax2 = fig.add_subplot(212)
