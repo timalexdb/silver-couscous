@@ -18,11 +18,9 @@ import math
 import matplotlib.ticker as tck
 from matplotlib import cm
 from matplotlib import colors
-from scipy.stats import norm
 from collections import OrderedDict, Counter
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
-from ast import literal_eval
 from random import choice, sample
 from time import process_time
 from statistics import mean
@@ -58,8 +56,8 @@ class Agent:
 # =============================================================================
         self.neighbours = list(graph.nodes[n]['agent'] for n in graph.neighbors(self.id))
         self.degree = len(self.neighbours)
-        self.modelset = (int(random.random() * self.degree) for i in range(rounds))#(random.randint(0, self.degree-1) for i in range(rounds))#np.random.choice(self.neighbours, size=rounds, replace = True)#random.choices(self.neighbours, k=rounds)
-          
+        self.modelset = (int(random.random() * self.degree) for i in range(40000))#(random.randint(0, self.degree-1) for i in range(rounds))#np.random.choice(self.neighbours, size=rounds, replace = True)#random.choices(self.neighbours, k=rounds)
+        self.model = self.neighbours[next(self.modelset)]
         
     def storeMoney(self, currentRound):
 # =============================================================================
@@ -109,16 +107,16 @@ class Agent:
 #         # model taken from random index (0, self.degree-1) from neighbours.
 #         # probability draw taken from pre-gen random list for agent
 # =============================================================================
-        model = self.neighbours[next(self.modelset)]
-        changeProb = (model.fitness - self.fitness)
+        self.model = self.neighbours[next(self.modelset)]
+        changeProb = (self.model.fitness - self.fitness)
         prob = self.randomList[currentRound]
         
         if changeProb > 1.0:    
             raise ValueError("changeprob over 1. modfit = {0}, selffit = {1}"
-                             .format(model.fitness, self.fitness))
+                             .format(self.model.fitness, self.fitness))
         
         if prob < changeProb:
-            self.nextstrat = model.strategy
+            self.nextstrat = self.model.strategy
             if verbose:
                 print("{0} switch!".format(self))
             
@@ -128,18 +126,20 @@ class Agent:
 #         # model taken from random index (0, self.degree-1) from neighbours.
 #         # probability draw taken from pre-gen random list for agent
 # =============================================================================
-        model = self.neighbours[next(self.modelset)]#self.modelset[currentRound]
-        fermiProb = 1 / (1 + np.e**(-selectionIntensity * (model.fitness - self.fitness)))
-        prob = self.randomList[currentRound]
-        #prob = next(self.randomgen)
-        
-        if prob < fermiProb:
-            self.nextstrat = model.strategy
-            
-            if verbose:
-                print("& {0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, self.fitness, model, model.fitness, fermiProb))
-                print("round {4}: {0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy, currentRound))
-        #return(model.fitness - self.fitness)
+        self.model = self.neighbours[next(self.modelset)]#self.modelset[currentRound]
+# =============================================================================
+#         fermiProb = 1 / (1 + np.e**(-selectionIntensity * (model.fitness - self.fitness)))
+#         prob = self.randomList[currentRound]
+#         #prob = next(self.randomgen)
+#         
+#         if prob < fermiProb:
+#             self.nextstrat = model.strategy
+#             
+#             if verbose:
+#                 print("& {0} fitSelf: {1}, {2} fitMod: {3}, fermiProb: {4}".format(self, self.fitness, model, model.fitness, fermiProb))
+#                 print("round {4}: {0} changing strategy ({1}) to that of {2}: {3}".format(self, self.strategy, model, model.strategy, currentRound))
+# =============================================================================
+        return(self.model.fitness - self.fitness)
 
     def comparisonMethods(self, argument):
 # =============================================================================
@@ -187,7 +187,6 @@ class Agent:
 
     def kill(self):
         del self
-
 
 
 class Graph:
@@ -355,14 +354,17 @@ class Population:
         self.graph = graph
         
     def populate(self):
-        birth = 0
-        while birth < agentCount:
-            agent = Agent(self.graph)
-            self.agents.append(agent)
-            birth += 1
-#        if logging == True:
-#            if latexTable == True:
-#                lafile.write("\t &&& \\\ \n")          
+        self.agents = [Agent(self.graph) for i in range(agentCount)]
+# =============================================================================
+#         birth = 0
+#         while birth < agentCount:
+#             agent = Agent(self.graph)
+#             self.agents.append(agent)
+#             birth += 1
+# #        if logging == True:
+# #            if latexTable == True:
+# #                lafile.write("\t &&& \\\ \n")          
+# =============================================================================
         for agent in self.agents:
             agent.meetNeighbours(self.graph)
 
@@ -392,18 +394,20 @@ class ultimatumGame:
 # =============================================================================
         self.population.populate()
         self.agents = np.array(self.population.agents)
+        
         playList = [[self.agents[node] for node in edge] for edge in self.edges]
 
         for n in range(rounds):
-                       
-            for i, players in enumerate(playList):
+            
+            for players in playList:
                 
                 for i in range(2):
                     
                     if randomRoles:
                         random.shuffle(players)
-                    proposer = players[i] 
-                    responder = players[i-1]
+                    proposer, responder = players
+                    #proposer = players[i]
+                    #responder = players[i-1]
                     
                     offer = proposer.strategy['offer']
                     accept = responder.strategy['accept']
@@ -435,12 +439,15 @@ class ultimatumGame:
 #                 # agents calculate income and fitness; faster than agent.storeMoney()
 #                 # if dataStore == False, agents only share stats at end of game
 # =============================================================================
-                income = agent.revenue #sum(self.revenue)
-                agent.fitness = income / (2 * agent.degree)
-                if agent.fitness > 1.0:
-                    raise ValueError("fitness no bueno chef, f = {0}".format(self.fitness))
-                if dataStore == True or n == rounds-1:
-                    agent.data.append([agent.strategy['offer'], agent.strategy['accept'], income])
+                self.moneys(agent, n)
+# =============================================================================
+#                 income = agent.revenue
+#                 agent.fitness = income / (2 * agent.degree)
+#                 if agent.fitness > 1.0:
+#                     raise ValueError("fitness no bueno chef, f = {0}".format(self.fitness))
+#                 if dataStore == True or n == rounds-1:
+#                     agent.data.append([agent.strategy['offer'], agent.strategy['accept'], income])
+# =============================================================================
             
             if n != (rounds - 1):
                 self.updateAgents(n)
@@ -456,11 +463,20 @@ class ultimatumGame:
             edgedata = [[values[i:i+2] for values in self.edgeDict.values()] for i in range(0, rounds*2, 2)]
         return(agentdata, edgedata)
     
-    
+    def moneys(self, agent, n):
+        income = agent.revenue
+        agent.fitness = income / (2 * agent.degree)
+        if agent.fitness > 1.0:
+            raise ValueError("fitness no bueno chef, f = {0}".format(self.fitness))
+        if dataStore == True or n == rounds-1:
+            agent.data.append([agent.strategy['offer'], agent.strategy['accept'], income])
+
+        
     def updateAgents(self, n):
 # =============================================================================
 #         # updating done in steps s.t. agents update concurrently
 # =============================================================================
+     
         if updating == 1:
             agentPoule = sample(self.agents, k=updateN)
             if verbose:
@@ -468,9 +484,11 @@ class ultimatumGame:
         else:
             agentPoule = self.agents
         
-        for agent in agentPoule:
-            #agent.updateStrategy(n)
-            agent.fermi(n)
+# =============================================================================
+#         for agent in agentPoule:
+#             #agent.updateStrategy(n)
+#             agent.fermi(n)
+# =============================================================================
             
 # =============================================================================
 #             #                 I N     P R O G R E S S
@@ -480,20 +498,50 @@ class ultimatumGame:
 #             # then mask with agentPoule and take only those agents for which value over 0
 #             # then update those agents' nextstrategy with modelstrategy
 # =============================================================================
-            
-        #fermiValues = 1 / (1 + np.e**(-selectionIntensity * np.array((agent.fermi(n) for agent in agentPoule))))
-        #updateList = fermiValues - np.random.rand(len(agentPoule))
-        #for agent in agentPoule[updateList > 0]]
-        #prob = self.randomList[n]
-        #prob = next(self.randomgen)
         
-            
-        for agent in agentPoule:
-            if agent.strategy != agent.nextstrat:
-                agent.changeStrat()
+        #fermiValues = 1 / (1 + np.e**(-selectionIntensity * np.array([agent.fermi(n) for agent in agentPoule])))
+        fermiValues = 1 / (1 + np.e**(-selectionIntensity * np.array([agent.model.fitness - agent.fitness for agent in agentPoule])))
         
+        a = agentPoule[fermiValues > np.random.rand(len(agentPoule))]
+        for agent in a:
+            agent.nextstrat = agent.model.strategy 
+        
+        if noise:
+            
+            length_a = len(a)
+            p_array = np.array([agent.nextstrat["offer"] for agent in a]) + ((np.random.rand(length_a) * noise_e) - alpha)
+            q_array = np.array([agent.nextstrat["accept"] for agent in a]) + ((np.random.rand(length_a) * noise_e) - alpha)
+            
+            #p_array = np.array([agent.nextstrat["offer"] + ((np.random.rand() * noise_e) - alpha) for agent in a])
+            #q_array = np.array([agent.nextstrat["accept"] + ((np.random.rand() * noise_e) - alpha) for agent in a])
+            
+            p_array[p_array < 0] = 0
+            p_array[p_array > 1] = 1
+            
+            q_array[q_array < 0] = 0
+            q_array[q_array > 1] = 1
+            #print(p_array, q_array)
+            
+            for i, agent in enumerate(a):
+                #if i < 10:
+                #    print(agent.strategy, agent.nextstrat)
+                agent.nextstrat["offer"] = p_array[i]
+                agent.nextstrat["accept"] = q_array[i]
+                agent.strategy = agent.nextstrat
+                #if i < 10:
+                #    print(agent.strategy)
+        else:
+            agent.strategy = agent.nextstrat              
+
+# =============================================================================
+#         for agent in a:
+#             agent.changeStrat()
+# =============================================================================
+            
+
         for agent in self.agents[np.random.rand(agentCount) < explore]:
-            agent.nextstrat = agent.randomise()                   
+            agent.nextstrat = agent.randomise()
+            #print(agent.strategy, agent.nextstrat)
             agent.strategy = agent.nextstrat
             
         for agent in self.agents:
@@ -518,13 +566,14 @@ class Simulation:
 #         # if dataStore == False, only last-round agent data is stored.
 #         # the means for gameTest and edgeTest are calculated over the simulations.
 # =============================================================================
+        n_edges = len(edgeList)
         
         if dataStore == False:
-            gameTest = np.zeros((agentCount, 1, 3, simulations), dtype = 'float32')
-            edgeTest = np.zeros((1, len(edgeList), 2, 3, simulations), dtype='float32')
+            gameTest = np.empty((agentCount, 1, 3, simulations), dtype = 'float32')
+            edgeTest = np.empty((1, n_edges, 2, 3, simulations), dtype='float32')
         else:
-            gameTest = np.zeros((agentCount, rounds, 3, simulations), dtype='float32')
-            edgeTest = np.zeros((rounds, len(edgeList), 2, 3, simulations), dtype='float32')
+            gameTest = np.empty((agentCount, rounds, 3, simulations), dtype='float32')
+            edgeTest = np.empty((rounds, n_edges, 2, 3, simulations), dtype='float32')
         
         def playUG(simgraph):
             print('\n=== simulation {0} ==='.format(sim))
@@ -961,7 +1010,7 @@ def betaplot(totaldat, betalist):
     lines = [p1, p2, p3]
     ax2.legend(lines, [l.get_label() for l in lines])
     """ 
-    
+
     
 def SWNplot(totgraphdata):
     
@@ -1201,7 +1250,7 @@ if __name__ == '__main__':
 
 
 
-times = [0,0, 0]
+times = [0, 0, 0]
 alph = noise_e/2
 b = 10000
 for i in range(b):
@@ -1213,9 +1262,8 @@ for i in range(b):
     times[0] += (stop1-start1)
     
     start2 = process_time()
-    aa = (int(random.random()*8) for i in range(rounds))#(((np.random.rand() * noise_e) - alph)for i in range(1000))
-    for i in range(1000):
-        next(aa)
+    aa = (np.random.uniform(-alpha, alpha, 1000))
+    aa[0]
     stop2 = process_time()
     times[1] += (stop2 - start2)
     
@@ -1225,7 +1273,7 @@ for i in range(b):
     aaa[0]
     times[2] += (stop3-start3)
 
-print(times[0]/1000, times[1]/1000, times[2]/1000)
+print(times[0]/b, times[1]/b, times[2]/b)
 
 
 #%%
