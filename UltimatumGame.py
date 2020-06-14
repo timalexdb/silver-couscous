@@ -379,44 +379,13 @@ class ultimatumGame:
     def __init__(self, graph):
         self.population = Population(graph)
         self.graph = graph
-        #self.edges = list(self.graph.edges)
-        self.edges = np.array(self.graph.edges)
+        self.edges = list(self.graph.edges)
         #self.edgeDict = {key : [] for key in self.edges}
         self.edgeList = []
         
         if edgeDegree >= agentCount:
             raise ValueError("Amount of edges per node cannot be equal to or greater than amount of agents")
     
-    def game(self, proposers, responders):
-        
-        offers = np.array([agent.strategy["offer"] for agent in proposers])
-        accepts = np.array([agent.strategy["accept"] for agent in responders])
-        
-        # successes = all couples for which interaction was successful
-        successes = self.playList[offers >= accepts]
-        #successes2 = list(zip(*self.edges[offers >= accepts]))
-        #print(successes2)
-        
-        #vals, counts = np.unique(successes2[0], return_counts=True)
-        
-        #print(list(zip(vals, counts)))
-        
-        #sys.exit()
-        #print("amount of successes: {0}, amount of fails: {1}".format(len(successes), len(fails)))
-        
-        
-        for prop, resp in successes:
-            payRes = prop.strategy['offer']
-            
-            resp.revenue += payRes
-            prop.revenue += (1-payRes)
-        
-        
-        # don't have to update fails since their revenue is set to 0 every round.
-                            
-        #randomvals = rng.integers(2, size=N_edges)
-        
-
     def play(self):
 # =============================================================================
 #         # population is filled with agents at the begin of the game.
@@ -426,111 +395,53 @@ class ultimatumGame:
         self.population.populate()
         self.agents = np.array(self.population.agents)
         
-        self.playList = np.array([[self.agents[node] for node in edge] for edge in self.edges])
-        
-        # idea 1 (random): each round select subset of which first player serves as proposer
-        
-        #N_edges = len(self.edges)        
-        #rng = np.random.default_rng()     
-        #randomvals = (rng.integers(2, size=N_edges) for i in range(rounds))
-        
-        splits = list(zip(*self.playList))
-        #inds = zip(*self.edges)
-        
-        # maybe do randomize with bitwise negation on np.array (~, see https://stackoverflow.com/questions/7030831/how-do-i-get-the-opposite-negation-of-a-boolean-in-python)
+        playList = [[self.agents[node] for node in edge] for edge in self.edges]
         
         for n in range(rounds):
-            #rand = next(randomvals)
-            #proposers = np.array(split1)[rand == 1]
-            #responders = np.array(split1)[rand == 0]
+                       
+            for players in playList:
+                
+                for i in range(2):
+                    
+                    if randomRoles:
+                        random.shuffle(players)
+                        
+                    proposer = players[i] 
+                    responder = players[i-1]
+                    
+                    offer = proposer.strategy['offer']
+                    accept = responder.strategy['accept']
             
-            for i in range(2):
-                #print(i, i-1)
-                self.game(splits[i], splits[i-1])
-            
-            #sys.exit()
-            
+                    if offer > 1.0 or accept > 1.0:
+                       raise ValueError("Values exceeding 1: p = {0}, q = {1}".format(offer, accept))
+                    
+                    if offer >= accept:
+                        success = 1
+                        proposer.revenue += (1 - offer)
+                        responder.revenue += offer
+                        #payPro = 1 - offer
+                        #payRes = offer
+                    
+                    #if dataStore == True:
+                    #self.edgeDict[self.edges[i]].append([offer, accept, success])
+                    #self.edgeList.append([offer, accept, success])
+                                        
+                              
             for agent in self.agents:
 # =============================================================================
 #                 # agents calculate income and fitness; faster than agent.storeMoney()
 #                 # if dataStore == False, agents only share stats at end of game
 # =============================================================================
-                self.moneys(agent, n)
-# =============================================================================
-#                 income = agent.revenue
-#                 agent.fitness = income / (2 * agent.degree)
-#                 if agent.fitness > 1.0:
-#                     raise ValueError("fitness no bueno chef, f = {0}".format(self.fitness))
-#                 if dataStore == True or n == rounds-1:
-#                     agent.data.append([agent.strategy['offer'], agent.strategy['accept'], income])
-# =============================================================================
+                income = agent.revenue #sum(self.revenue)
+                agent.fitness = income / (2 * agent.degree)
+                if agent.fitness > 1.0:
+                    raise ValueError("fitness no bueno chef, f = {0}".format(self.fitness))
+                if dataStore == True or n == rounds-1:
+                    agent.data.append([agent.strategy['offer'], agent.strategy['accept'], income])
             
             if n != (rounds - 1):
                 self.updateAgents(n)
 
-        
-        
-# =============================================================================
-#         # U N E D I T E D      P A R T
-#
-#         playList = [[self.agents[node] for node in edge] for edge in self.edges]
-#                
-#         for n in range(rounds):
-#             
-#             for players in playList:
-#                 
-#                 for i in range(2):
-#                     
-#                     if randomRoles:
-#                         random.shuffle(players)
-#                     proposer, responder = players
-#                     #proposer = players[i]
-#                     #responder = players[i-1]
-#                     
-#                     offer = proposer.strategy['offer']
-#                     accept = responder.strategy['accept']
-#             
-#                     if offer > 1.0 or accept > 1.0:
-#                        raise ValueError("Values exceeding 1: p = {0}, q = {1}".format(offer, accept))
-#                     
-#                     if offer >= accept:
-#                         success = 1
-#                         payPro = 1 - offer
-#                         payRes = offer
-#                     else:
-#                         success = 0
-#                         payPro = 0
-#                         payRes = 0
-#                         if testing:
-#                             print("Offer {0} ({1}) too low for acceptance {2} ({3})"
-#                                   .format(offer, proposer, accept, responder))
-#                     
-#                     #if dataStore == True:
-#                     #self.edgeDict[self.edges[i]].append([offer, accept, success])
-#                     #self.edgeList.append([offer, accept, success])
-#                     
-#                     proposer.revenue += payPro
-#                     responder.revenue += payRes                    
-#                               
-#             for agent in self.agents:
-# # =============================================================================
-# #                 # agents calculate income and fitness; faster than agent.storeMoney()
-# #                 # if dataStore == False, agents only share stats at end of game
-# # =============================================================================
-#                 self.moneys(agent, n)
-# # =============================================================================
-# #                 income = agent.revenue
-# #                 agent.fitness = income / (2 * agent.degree)
-# #                 if agent.fitness > 1.0:
-# #                     raise ValueError("fitness no bueno chef, f = {0}".format(self.fitness))
-# #                 if dataStore == True or n == rounds-1:
-# #                     agent.data.append([agent.strategy['offer'], agent.strategy['accept'], income])
-# # =============================================================================
-#             
-#             if n != (rounds - 1):
-#                 self.updateAgents(n)
-# 
-# =============================================================================
        
         # ==== end of rounds =====
         
@@ -542,20 +453,11 @@ class ultimatumGame:
             edgedata = [[values[i:i+2] for values in self.edgeDict.values()] for i in range(0, rounds*2, 2)]
         return(agentdata, edgedata)
     
-    def moneys(self, agent, n):
-        income = agent.revenue
-        agent.fitness = income / (2 * agent.degree)
-        if agent.fitness > 1.0:
-            raise ValueError("fitness no bueno chef, f = {0}".format(self.fitness))
-        if dataStore == True or n == rounds-1:
-            agent.data.append([agent.strategy['offer'], agent.strategy['accept'], income])
-
-        
+    
     def updateAgents(self, n):
 # =============================================================================
 #         # updating done in steps s.t. agents update concurrently
 # =============================================================================
-     
         if updating == 1:
             agentPoule = sample(self.agents, k=updateN)
             if verbose:
@@ -563,11 +465,9 @@ class ultimatumGame:
         else:
             agentPoule = self.agents
         
-# =============================================================================
-#         for agent in agentPoule:
-#             #agent.updateStrategy(n)
-#             agent.fermi(n)
-# =============================================================================
+        for agent in agentPoule:
+            #agent.updateStrategy(n)
+            agent.fermi(n)
             
 # =============================================================================
 #             #                 I N     P R O G R E S S
@@ -577,50 +477,20 @@ class ultimatumGame:
 #             # then mask with agentPoule and take only those agents for which value over 0
 #             # then update those agents' nextstrategy with modelstrategy
 # =============================================================================
+            
+        #fermiValues = 1 / (1 + np.e**(-selectionIntensity * np.array((agent.fermi(n) for agent in agentPoule))))
+        #updateList = fermiValues - np.random.rand(len(agentPoule))
+        #for agent in agentPoule[updateList > 0]]
+        #prob = self.randomList[n]
+        #prob = next(self.randomgen)
         
-        #fermiValues = 1 / (1 + np.e**(-selectionIntensity * np.array([agent.fermi(n) for agent in agentPoule])))
-        fermiValues = 1 / (1 + np.e**(-selectionIntensity * np.array([agent.model.fitness - agent.fitness for agent in agentPoule])))
+            
+        for agent in agentPoule:
+            if agent.strategy != agent.nextstrat:
+                agent.changeStrat()
         
-        a = agentPoule[fermiValues > np.random.rand(len(agentPoule))]
-        for agent in a:
-            agent.nextstrat = agent.model.strategy 
-        
-        if noise:
-            
-            length_a = len(a)
-            p_array = np.array([agent.nextstrat["offer"] for agent in a]) + ((np.random.rand(length_a) * noise_e) - alpha)
-            q_array = np.array([agent.nextstrat["accept"] for agent in a]) + ((np.random.rand(length_a) * noise_e) - alpha)
-            
-            #p_array = np.array([agent.nextstrat["offer"] + ((np.random.rand() * noise_e) - alpha) for agent in a])
-            #q_array = np.array([agent.nextstrat["accept"] + ((np.random.rand() * noise_e) - alpha) for agent in a])
-            
-            p_array[p_array < 0] = 0
-            p_array[p_array > 1] = 1
-            
-            q_array[q_array < 0] = 0
-            q_array[q_array > 1] = 1
-            #print(p_array, q_array)
-            
-            for i, agent in enumerate(a):
-                #if i < 10:
-                #    print(agent.strategy, agent.nextstrat)
-                agent.nextstrat["offer"] = p_array[i]
-                agent.nextstrat["accept"] = q_array[i]
-                agent.strategy = agent.nextstrat
-                #if i < 10:
-                #    print(agent.strategy)
-        else:
-            agent.strategy = agent.nextstrat              
-
-# =============================================================================
-#         for agent in a:
-#             agent.changeStrat()
-# =============================================================================
-            
-
         for agent in self.agents[np.random.rand(agentCount) < explore]:
-            agent.nextstrat = agent.randomise()
-            #print(agent.strategy, agent.nextstrat)
+            agent.nextstrat = agent.randomise()                   
             agent.strategy = agent.nextstrat
             
         for agent in self.agents:
