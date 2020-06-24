@@ -603,7 +603,9 @@ class Simulation:
         
         gameTest = np.transpose(gameTest, (1,3,0,2))
 
-#        datastoreSims(gameTest)
+        storeName = "WS-p={0}".format(p)
+
+        datastoreSims(gameTest, storeName)
         
         
         #gameTest = gameTest.mean(axis=3)
@@ -614,6 +616,8 @@ class Simulation:
     
         return(gameTest, edgeTest)                
 
+#%%
+
 def datastoreSims(inputdata, setting):
     indexGame = pd.MultiIndex.from_product((range(simulations), agentList, ['p', 'q', 'u']), names = ['simulation', 'agent', 'value'])
     inputdata = inputdata.reshape((1,-1))
@@ -621,7 +625,7 @@ def datastoreSims(inputdata, setting):
     gameData = pd.DataFrame(data = inputdata, index = range(1), columns = indexGame)
     gameData.columns = gameData.columns.map(str)
     #gameData.to_parquet("Experiment1/WS_s={3}_n={0}_k={1}_p={2}_er={4}.parquet".format(agentCount, edgeDegree, p, simulations, explore))
-    gameData.to_parquet("Experiment2/{4}_s={2}_n={0}_k={1}_er={3}.parquet".format(agentCount, edgeDegree, simulations, explore, str(setting)))
+    gameData.to_parquet("Experiment1/{4}_s={2}_n={0}_k={1}_er={3}.parquet".format(agentCount, edgeDegree, simulations, explore, str(setting)))
 
 
 def dataHandling(gameSet):#, edgeTest):
@@ -651,7 +655,8 @@ def dataHandling(gameSet):#, edgeTest):
         gameData.to_parquet("Experiment1/WattsStrogatz_s={3}_n={0}_k={1}_p={2}_er={4}.parquet".format(agentCount, edgeDegree, p, simulations, explore))
         #gameData.to_parquet("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.4f}_select={4}_beta={5}_updating={6}_updateN={7}.parquet".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN))
         #edgeData.to_parquet("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.4f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.parquet".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN))
-    
+
+#%%    
 
 def generateImg(graph, g, positions, gamedata, edgedata, i):
     
@@ -1349,7 +1354,7 @@ if __name__ == '__main__':
     # HYPERPARAM
     # =============================================================================
     
-    simulations = 100
+    simulations = 50
     rounds = 10000#10000
     agentCount = 60
     edgeDegree = 4
@@ -1416,7 +1421,7 @@ if __name__ == '__main__':
     
 #    betaList = []
     #probabilities = [0.0, 0.015, 0.035, 0.05, 0.07, 0.085, 0.105, 0.13, 0.15, 0.17, 0.2, 0.225, 0.25, 0.28500000000000003, 0.315, 0.355, 0.395, 0.45, 0.525, 0.61, 0.915]
-    #probabilities = [0.0, 0.035, 0.07, 0.105, 0.15, 0.2, 0.25, 0.315, 0.395, 0.525, 0.915]
+    probabilities = [0.0, 0.035, 0.07, 0.105, 0.15, 0.2, 0.25, 0.315, 0.395, 0.525, 0.915]
     
     #probabilities = [0.0, 0.915]
     
@@ -1424,42 +1429,42 @@ if __name__ == '__main__':
     graphSet = []
     gdataSet = []
     
+    #W A T T S - S T R O G A T Z   N E T W O R K    S E T   G E N E R A T O R
+    for prob in probabilities:
+        problist = []
+        gdatproblist = []
+        for sim in range(simulations):
+            currgraph, gdata = gg.createSWN(prob)        
+            problist.append(currgraph)
+            gdatproblist.append(gdata)
+        graphSet.append(problist)
+        gdataSet.append(gdatproblist)
+    
 # =============================================================================
-#     W A T T S - S T R O G A T Z   N E T W O R K    S E T   G E N E R A T O R
-#     for p in probabilities:
-#         problist = []
-#         gdatproblist = []
-#         for sim in range(simulations):
-#             currgraph, gdata = gg.createSWN(p)        
-#             problist.append(currgraph)
-#             gdatproblist.append(gdata)
-#         graphSet.append(problist)
-#         gdataSet.append(gdatproblist)
+#     RNDlist = []
+#     RNDdata = []
+#     SFNlist = []
+#     SFNdata = []
+#     
+#     if edgeDegree % 2 != 0:
+#         raise ValueError("Average amount of edges cannot be odd. edgeDegree = {0}".format(edgeDegree))
+#     m_value = int(edgeDegree/2)
+#     
+#     for sim in range(simulations):
+#         RNDtot = gg.createSWN(1.0)
+#         SFNtot = gg.createSFN(m_value)
+#         
+#         if len(RNDtot[0]) != agentCount or len(SFNtot[0]) != agentCount:
+#             raise ValueError("agents incorrectly replaced")
+#         
+#         RNDlist.append(RNDtot[0])
+#         RNDdata.append(RNDtot[1])
+#         SFNlist.append(SFNtot[0])
+#         SFNdata.append(SFNtot[1])
+#     
+#     graphSet = [RNDlist, SFNlist]
+#     gdataSet = [RNDdata, SFNdata]
 # =============================================================================
-    
-    RNDlist = []
-    RNDdata = []
-    SFNlist = []
-    SFNdata = []
-    
-    if edgeDegree % 2 != 0:
-        raise ValueError("Average amount of edges cannot be odd. edgeDegree = {0}".format(edgeDegree))
-    m_value = int(edgeDegree/2)
-    
-    for sim in range(simulations):
-        RNDtot = gg.createSWN(1.0)
-        SFNtot = gg.createSFN(m_value)
-        
-        if len(RNDtot[0]) != agentCount or len(SFNtot[0]) != agentCount:
-            raise ValueError("agents incorrectly replaced")
-        
-        RNDlist.append(RNDtot[0])
-        RNDdata.append(RNDtot[1])
-        SFNlist.append(SFNtot[0])
-        SFNdata.append(SFNtot[1])
-    
-    graphSet = [RNDlist, SFNlist]
-    gdataSet = [RNDdata, SFNdata]
     
     for i in range(len(graphSet)):
         
@@ -1467,7 +1472,8 @@ if __name__ == '__main__':
 #        betaList.append(selectionIntensity)
         #print("current run: probability = {0}".format(p))
         
-#       p = 0.1
+        p = probabilities[i]
+        
         graphList = graphSet[i]
         gdataList = gdataSet[i]
         
@@ -1505,17 +1511,19 @@ if __name__ == '__main__':
         #    dataHandling(gamedat, edgedat)
     
 #    ex1plot(totaldata, probabilities)
-    edges = []
-    for graphs in graphSet:
-        edgtemp = 0
-        for graph in graphs:
-            edgtemp += len(graph.edges)
-        edges.append(edgtemp/simulations)
-    print(edges)
+# =============================================================================
+#     edges = []
+#     for graphs in graphSet:
+#         edgtemp = 0
+#         for graph in graphs:
+#             edgtemp += len(graph.edges)
+#         edges.append(edgtemp/simulations)
+#     print(edges)
+#     
+# =============================================================================
+    #datastoreSims(totaldata[0][0], 'random')
     
-    datastoreSims(totaldata[0][0], 'random')
-    
-    ex2plot(totaldata, graphSet)    
+    #ex2plot(totaldata, graphSet)    
     #betaplot with betas [5, 10, 15, 20, 25, 30]
     #betaplot(totaltotaldata, betaList)
     
