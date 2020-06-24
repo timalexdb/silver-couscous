@@ -24,6 +24,7 @@ import matplotlib.animation as ani
 from random import choice, sample
 from time import process_time
 from statistics import mean
+import scipy as sc
 
 
 class Agent:
@@ -210,30 +211,13 @@ class Graph:
         self.graphs = []
         
          
-    def createSFN(self):
-        
-        m_step = np.linspace(1, agentCount, simulations, endpoint=False)
-        
-        #if int(m_step[i]) < agentCount:
-        #    m = int(m_step[i])
-        #else:
-        #    m = (agentCount-1)
-        
-        m = 3#m_step[12]
-        
-        # --> nx.extended_barabasi_albert_graph?
+    def createSFN(self, m):
         SFN = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
-        
         SFNcharacteristics = Graph.graphCharacteristics(SFN)
         
         fnameSFN = "Barabasi-Albert_n{0}_sim{1}_m={2}".format(agentCount, simulations, m)
         
-        #nx.write_edgelist(SFN, "Graphs/Barabasi-AlbertV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
-        
-        nx.write_gpickle(SFN, "Graphs/{0}.gpickle".format(fnameSFN))
-        
-        
-        #self.graphData[fnameSWN], self.graphData[fnameSFN] = SWNcharacteristics, SFNcharacteristics
+        #nx.write_gpickle(SFN, "Graphs/Experiment2/{0}.gpickle".format(fnameSFN))        
         self.graphData[fnameSFN] = SFNcharacteristics
         
         if showGraph:
@@ -245,24 +229,11 @@ class Graph:
                       .format('Barabàsi-Albert', i, simulations, m, gg.graphData[fnameSFN]['APL'], gg.graphData[fnameSFN]['CC'], gg.graphData[fnameSFN]['SPavg']))
 
             plt.show()
-        self.graphs.append(SFN)
-            
-        #print("graphs created")
+        #self.graphs.append(SFN)
     
-        return(self.graphs, self.graphData)
-            
-        """
-        if showGraph:
-            for key in self.graphData.keys():
-                if key == 'Watts-Strogatz':
-                    x = p_step
-                    xlab = 'probability of rewiring random edge'
-                if key == 'Barabasi-Albert':
-                    x = m_step
-                    xlab = 'degree for each new agent'
-                Plot().measurePlot(key, x, gg.graphData, xlab)
-        """
-        
+        return(SFN, self.graphData[fnameSFN])
+    
+    
     def createSWN(self, p):
                 
         SWN = nx.connected_watts_strogatz_graph(agentCount, edgeDegree, p)
@@ -271,22 +242,16 @@ class Graph:
         
         fnameSWN = "Watts-Strogatz_n{0}_k={2}_p={3}_APL={4}_CC={5}_SP={6}".format(agentCount, simulations, edgeDegree, p, SWNcharacteristics['APL'], SWNcharacteristics['CC'], SWNcharacteristics['SPavg'])
         
-        #nx.write_edgelist(SWN, "Graphs/Watts-StrogatzV{0}_n{1}_sim{2}_round{3}_exp={4:.2f}_prop={5}_random={6}".format(i, agentCount, simulations, rounds, explore, str(randomRoles)))
-        nx.write_gpickle(SWN, "Graphs/Experiment 1/{0}.gpickle".format(fnameSWN))        
+        #nx.write_gpickle(SWN, "Graphs/Experiment 1/{0}.gpickle".format(fnameSWN))        
         
         self.graphData[fnameSWN] = SWNcharacteristics
         
         if showGraph:
-            #fnameSWN = "Watts-StrogatzV{0}_n{1}_sim{2}_k={3}_p={4}".format(i, agentCount, simulations, edgeDegree, p)
             
             nx.draw_kamada_kawai(SWN, with_labels=True, edge_color = '#00a39c', node_color = '#ff6960', alpha=0.63, node_size = 200, width = 1)
             plt.title('{0}, p = {1:0.3f}\nAPL={2:0.3f}, CC = {3:0.3f}, SP = {4:0.3f})'
                       .format('Watts-Strogatz', p, gg.graphData[fnameSWN]['APL'], gg.graphData[fnameSWN]['CC'], gg.graphData[fnameSWN]['SPavg']))
-                              #p_step[i], gg.graphData[fnameSWN]['APL'], gg.graphData[fnameSWN]['CC'], gg.graphData[fnameSWN]['SPavg']))
             plt.show()
-        
-        #self.graphs.append(SWN)   
-        #print("graphs created")
     
         return(SWN, self.graphData[fnameSWN]) #self.graphs, self.graphData[fnameSWN])
 
@@ -416,44 +381,52 @@ class ultimatumGame:
                 
         for n in range(rounds):
             
-            if randomRoles:                            
-                randlist = np.random.rand(n_edges) * 2
+# =============================================================================
+#             if randomRoles:                            
+#                 randlist = np.random.rand(n_edges) * 2
+# =============================================================================
                        
             for players in playList:
                 
                 
-# =============================================================================
-#                 strats = [agent.strategy for agent in players]                
-#                 
-#                 if strats[0][0] > 1.0 or strats[0][1] > 1.0 or strats[1][0] > 1.0 or strats[1][1] > 1.0:
-#                     raise ValueError("Values exceeding 1: p = {0}, q = {1}".format([strat[0] for strat in strats], [strat[1] for strat in strats]))
-#                 
-#                 for i in range(2):
-#                     offer = strats[i][0]
-#                     accept = strats[i-1][1]
-#                     
-#                     if offer >= accept:
-#                         players[i].revenue += (1 - offer)
-#                         players[i-1].revenue += offer
-# =============================================================================
+                strats = [agent.strategy for agent in players]                
+                
+                if strats[0][0] > 1.0 or strats[0][1] > 1.0 or strats[1][0] > 1.0 or strats[1][1] > 1.0:
+                    raise ValueError("Values exceeding 1: p = {0}, q = {1}".format([strat[0] for strat in strats], [strat[1] for strat in strats]))
+                
                 if randomRoles:
-                    role = int(randlist[i])
+                    sets = [int(np.random.rand() * 2) for i in range(2)]
                 else:
-                    role = n % 2
+                    sets = range(2)
                 
-                proposer = players[role]
-                responder = players[role-1]
-                
-                offer = proposer.strategy[0]
-                accept = responder.strategy[1]
-        
-                if offer > 1.0 or accept > 1.0:
-                   raise ValueError("Values exceeding 1: p = {0}, q = {1}".format(offer, accept))
-                
-                if offer >= accept:
-                    success = 1
-                    proposer.revenue += (1 - offer)
-                    responder.revenue += offer
+                for i in sets:
+                    offer = strats[i][0]
+                    accept = strats[i-1][1]
+                    
+                    if offer >= accept:
+                        players[i].revenue += (1 - offer)
+                        players[i-1].revenue += offer
+
+# =============================================================================
+#                 if randomRoles:
+#                     role = int(randlist[i])
+#                 else:
+#                     role = n % 2
+#                 
+#                 proposer = players[role]
+#                 responder = players[role-1]
+#                 
+#                 offer = proposer.strategy[0]
+#                 accept = responder.strategy[1]
+#         
+#                 if offer > 1.0 or accept > 1.0:
+#                    raise ValueError("Values exceeding 1: p = {0}, q = {1}".format(offer, accept))
+#                 
+#                 if offer >= accept:
+#                     success = 1
+#                     proposer.revenue += (1 - offer)
+#                     responder.revenue += offer
+# =============================================================================
 
 
             for agent in self.agents:
@@ -462,7 +435,7 @@ class ultimatumGame:
 #                 # if dataStore == False, agents only share stats at end of game
 # =============================================================================
                 income = agent.revenue #sum(self.revenue)
-                agent.fitness = income / (agent.degree)
+                agent.fitness = income / (2 * agent.degree)
                 agent.findModel()
                 
                 if agent.fitness > 1.0:
@@ -628,16 +601,27 @@ class Simulation:
         for sim in range(simulations):
             playUG(simgraphList[sim])
         
-        #print(np.shape(gameTest))
-        #print(np.shape(edgeTest))
+        gameTest = np.transpose(gameTest, (1,3,0,2))
+
+#        datastoreSims(gameTest)
         
-        gameTest = gameTest.mean(axis=3)
-        edgeTest = edgeTest.mean(axis=3)
         
-        gameTest = np.transpose(gameTest, (1, 0, 2))
+        #gameTest = gameTest.mean(axis=3)
+        #edgeTest = edgeTest.mean(axis=3)
+        print(gameTest.shape)
+        #gameTest = np.transpose(gameTest, (1, 0, 2))
         #edgeTest = np.transpose(edgeTest, (1, 0, 2))
     
         return(gameTest, edgeTest)                
+
+def datastoreSims(inputdata, setting):
+    indexGame = pd.MultiIndex.from_product((range(simulations), agentList, ['p', 'q', 'u']), names = ['simulation', 'agent', 'value'])
+    inputdata = inputdata.reshape((1,-1))
+
+    gameData = pd.DataFrame(data = inputdata, index = range(1), columns = indexGame)
+    gameData.columns = gameData.columns.map(str)
+    #gameData.to_parquet("Experiment1/WS_s={3}_n={0}_k={1}_p={2}_er={4}.parquet".format(agentCount, edgeDegree, p, simulations, explore))
+    gameData.to_parquet("Experiment2/{4}_s={2}_n={0}_k={1}_er={3}.parquet".format(agentCount, edgeDegree, simulations, explore, str(setting)))
 
 
 def dataHandling(gameSet):#, edgeTest):
@@ -664,7 +648,7 @@ def dataHandling(gameSet):#, edgeTest):
         gameData.columns = gameData.columns.map(str)
         #edgeData.columns = edgeData.columns.map(str)
         
-        gameData.to_parquet("Experiment1/WattsStrogatz_n={0}_k={1}_p={2}.parquet".format(agentCount, edgeDegree, p))
+        gameData.to_parquet("Experiment1/WattsStrogatz_s={3}_n={0}_k={1}_p={2}_er={4}.parquet".format(agentCount, edgeDegree, p, simulations, explore))
         #gameData.to_parquet("Data/gameData_n{0}_sim{1}_round{2}_exp={3:.4f}_select={4}_beta={5}_updating={6}_updateN={7}.parquet".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN))
         #edgeData.to_parquet("Data/edgeData_n{0}_sim{1}_round{2}_exp={3:.4f}_random={4}_select={5}_beta={6}_updating={7}_updateN={8}.parquet".format(agentCount, simulations, rounds, explore, str(randomRoles), selectionStyle, selectionIntensity, updating, updateN))
     
@@ -827,7 +811,20 @@ def generateImg(graph, g, positions, gamedata, edgedata, i):
     save_image()
 
 #%%
+
+
+def writestats(stats, varstats):
+    print(stats)
+    values = [[str(val) for val in stat] for stat in stats]
+    varvalues = [[str(var) for var in varstat] for varstat in varstats]
     
+    varvar = list(zip(values, varvalues))
+    
+    with open("Experiment1/WattsStrogatz_s={3}_n={0}_k={1}_p={2}_er={4}.txt".format(agentCount, edgeDegree, len(probabilities), simulations, explore), 'w+') as f:
+        for i in range(len(varvar)):
+            f.write("{1}: {0}\n".format(varvar[i], ['totalp', 'pvar', 'totalq', 'qvar'][i]))
+        f.close()
+  
 def degreeplot(totaldat, degrees):
     totalp = []
     totalq = []
@@ -892,10 +889,75 @@ def degreeplot(totaldat, degrees):
     
     lines = [p1, p2, p3]
     ax2.legend(lines, [l.get_label() for l in lines])
+
+def ex2plot(totaldat, graphs):
     
+    totalp = []
+    totalpvar = []
+    totalq = []
+    totalqvar = []
+    
+    tot_labels = []
+    
+    for i in totaldat:
+        gamedata, edgedata, *gdata = i
+        
+        *stratlist, u_list = gamedata.T
+
+        p_list, q_list = stratlist
+        totalp.append(p_list.mean(axis=0).mean(axis=0))
+        totalpvar.append(p_list.mean(axis=0).var(axis=0))
+        totalq.append(q_list.mean(axis=0).mean(axis=0))
+        totalqvar.append(q_list.mean(axis=0).var(axis=0))
+
+        p_labels = np.array(p_list)
+        q_labels = np.array(q_list)
+
+        p_labels[p_labels >= 0.5] = 1
+        p_labels[p_labels < 0.5] = 3
+        q_labels[q_labels >= 0.5] = 1
+        q_labels[q_labels < 0.5] = 0
+        
+        tot = p_labels + q_labels
+        tot_labels.append(tot)
+    
+    #print(tot)
+    #print(np.shape(tot))        
+    print(totalp, totalq)
+    print(totalpvar, totalqvar)
+    
+    totalp = np.array(totalp)
+    totalpvar = np.array(totalpvar)
+    totalq = np.array(totalq)
+    totalqvar = np.array(totalqvar)
+    
+    fig = plt.figure(figsize = (10, 10))#(15,10))
+    ax1 = fig.add_subplot(211)
+    #ax2 = fig.add_subplot(212)
+    
+    setting = ['RND', 'SFN']
+    
+    ax1.set_ylim([0, 0.5])
+    ax1.plot(setting, totalp, 'r', label = 'average p')
+    ax1.plot(setting, totalq, 'b', label = 'average q')
+    ax1.fill_between(setting, totalp - totalpvar, totalp + totalpvar, alpha=0.2, color='red')
+    ax1.fill_between(setting, totalq - totalqvar, totalq + totalqvar, alpha=0.2, color='blue')
+    ax1.legend()
+    
+    ax1.set_xlabel('setting')
+    ax1.set_ylabel('strategy values')
+    
+    for i in range(2):
+        plt.figure(figsize = (9,9))
+        nx.draw_kamada_kawai(graphs[i][0], with_labels=True, edge_color = '#00a39c', node_color = '#ff6960', alpha=0.63, node_size = 300, width = 1)
+    
+    degree_hist(graphs)
+    
+        
     
 def ex1plot(totaldat, probs):
-
+    
+    allpq = []
     totalp = []
     totalpvar = []
     totalq = []
@@ -912,6 +974,7 @@ def ex1plot(totaldat, probs):
         
         *stratlist, u_list = gamedata.T
         p_list, q_list = stratlist
+        allpq.append(stratlist)
         
         totalp.append(np.mean(p_list))
         totalpvar.append(np.std(p_list))
@@ -933,7 +996,10 @@ def ex1plot(totaldat, probs):
     totalpvar = np.array(totalpvar)
     totalq = np.array(totalq)
     totalqvar = np.array(totalqvar)
-    print(totalpvar, totalqvar)
+    #print(totalpvar, totalqvar)
+    
+    writestats([totalp, totalq], [totalpvar, totalqvar])
+    #print(totalp, totalq)
     
     tot_labels = np.asarray(tot_labels, dtype='int')
     
@@ -944,12 +1010,12 @@ def ex1plot(totaldat, probs):
             stratStyles[key].append(lab[i+1]/agentCount)    
     b = [totalp, totalq, stratStyles['altruist'], stratStyles['demand'], stratStyles['sgpn'], stratStyles['exploit']]
     
-    savestats = pd.DataFrame(np.array(b).T)
-    savestats.to_csv("Data/degreestatsN=100.parquet", header=None, index=None)
+    #savestats = pd.DataFrame(np.array(b).T)
+    #savestats.to_csv("Data/degreestatsN=100.parquet", header=None, index=None)
         
-    fig = plt.figure(figsize = (15,10))
+    fig = plt.figure(figsize = (10, 10))#(15,10))
     ax1 = fig.add_subplot(211)
-    ax2 = fig.add_subplot(212)
+    #ax2 = fig.add_subplot(212)
     
     ax1.set_ylim([0, 0.5])
     ax1.plot(probs, totalp, 'r', label = 'average p')
@@ -957,10 +1023,14 @@ def ex1plot(totaldat, probs):
     ax1.fill_between(probs, totalp - totalpvar, totalp + totalpvar, alpha=0.2, color='red')
     ax1.fill_between(probs, totalq - totalqvar, totalq + totalqvar, alpha=0.2, color='blue')
     ax1.legend()
-    #ax1.set_xscale('symlog', linthreshx=0.00999)
-    #ax1.set_xticks([0, 0.01, 0.1, 1])
+    ax1.set_xscale('symlog', linthreshx=0.00999)
+    ax1.set_xticks([0, 0.01, 0.1, 1])
     ax1.set_xlim(xmin=-0.0001, xmax=1.05)
-    #ax1.get_xaxis().set_major_formatter(tck.ScalarFormatter())
+    ax1.get_xaxis().set_major_formatter(tck.ScalarFormatter())
+    
+    ax1.set_xlabel('rewiring probability')
+    ax1.set_ylabel('strategy values')
+
     #vals = ax1.get_xticks()
     #ax1.set_xticklabels(['{:.0f}%'.format(val*100) for val in vals])
     
@@ -970,6 +1040,8 @@ def ex1plot(totaldat, probs):
     exploitC = 'orange'
     
 # =============================================================================
+#     # T H I S  I S  F O R  L I N E P L O T
+#
 #     ax2.set_ylim([-0.1, 1.1])
 #     
 #     l1, = ax2.plot(probs, stratStyles['altruist'], color = altruistC,  label = 'altruist')
@@ -984,24 +1056,102 @@ def ex1plot(totaldat, probs):
 #     ax2.legend(lines, [l.get_label() for l in lines])
 # =============================================================================
     
-    w=0.01
-    ax2.set_xlim(0-w*3, 1)
-    ax2.set_ylim(0,1)
-    probs = np.array(probs)
-    #print(stratStyles.())
-    ax2.bar(probs-w*2, stratStyles['altruist'], width=w, color = altruistC, label = 'altruist')
-    ax2.bar(probs-w, stratStyles['demand'], width=w, color = demandC, label = 'demand')
-    ax2.bar(probs+w, stratStyles['sgpn'], width=w, color = sgpnC, label = 'sgpn')
-    ax2.bar(probs+w*2, stratStyles['exploit'], width=w, color = exploitC, label = 'exploit')
-    ax2.legend()
-    #ax2.set_xscale('symlog', linthreshx=0.00999)
-    #ax2.set_xticks([0, 0.01, 0.1, 1])
-    #ax2.set_xlim(xmin=-0.0001, xmax=1.05)
-    #ax2.get_xaxis().set_major_formatter(tck.ScalarFormatter())
-    #bars = [b1, b2, b3, b4]
-    #ax2.legend(bars, [b.get_label() for b in bars])
+# =============================================================================
+#     w=0.01
+#     ax2.set_xlim(0-w*3, 1)
+#     ax2.set_ylim(0,1)
+#     probs = np.array(probs)
+#     #print(stratStyles.())
+#     ax2.bar(probs-w*2, stratStyles['altruist'], width=w, color = altruistC, label = 'altruist')
+#     ax2.bar(probs-w, stratStyles['demand'], width=w, color = demandC, label = 'demand')
+#     ax2.bar(probs+w, stratStyles['sgpn'], width=w, color = sgpnC, label = 'sgpn')
+#     ax2.bar(probs+w*2, stratStyles['exploit'], width=w, color = exploitC, label = 'exploit')
+#     ax2.legend()
+#     #ax2.set_xscale('symlog', linthreshx=0.00999)
+#     #ax2.set_xticks([0, 0.01, 0.1, 1])
+#     #ax2.set_xlim(xmin=-0.0001, xmax=1.05)
+#     #ax2.get_xaxis().set_major_formatter(tck.ScalarFormatter())
+#     #bars = [b1, b2, b3, b4]
+#     #ax2.legend(bars, [b.get_label() for b in bars])
+#     
+#     plt.savefig("Images/ex1firsttry.png")
     
-    plt.savefig("Images/ex1firsttry.png")
+    fig2 = plt.figure(figsize = (12, 5))
+    ax_strats = fig2.add_subplot(121)
+    axheat = fig2.add_subplot(122)
+    
+    
+    # hist & hist2d prep
+    phist, qhist = allpq[-1]
+    print(phist)
+    heatbins = np.linspace(0.0, 1.0, 40)
+    histbins = np.linspace(0.0, 1.0, 40)
+    dat, p, q = np.histogram2d(qhist, phist, bins=heatbins, density=False)
+    ext = [q[0], q[-1], p[0], p[-1]]
+    
+    # heatmap(hist2d)
+    im = axheat.imshow(dat.T, origin='lower', cmap = plt.cm.viridis, interpolation = 'spline36', extent = ext)#hist2d([], [], bins=20, cmap=plt.cm.BuGn)
+    axheat.set_xlabel("accepts (q)")
+    axheat.set_ylabel("offers (p)")
+    fig.colorbar(im, ax=axheat, shrink=0.9)
+    
+    # hist
+    n, bins, patches = ax_strats.hist(phist, histbins, density=0, facecolor='red', alpha=0.5, label='offers (p)')
+    n, bins, patches = ax_strats.hist(qhist, histbins, density=0, facecolor='midnightblue', alpha=0.5, label = 'accepts (q)')
+    #y1 = sc.stats.norm.pdf(histbins, phist.mean(axis=0), phist.std(axis=0))
+    #y2 = sc.stats.norm.pdf(histbins, qhist.mean(axis=0), qhist.std(axis=0))
+    #ax_strats.plot(histbins, y1, 'red', '--', alpha = 0.6)
+    #ax_strats.plot(histbins, y2, 'midnightblue', '--', alpha = 0.6)
+    ax_strats.legend(loc='upper right')
+    ax_strats.set_xlabel('strategy value')
+    ax_strats.set_ylabel('frequency')
+    
+# =============================================================================
+
+
+def degree_hist(graphset):
+    degs = []
+    degCounts = []
+    
+    for setting in graphset:
+        gnum = len(setting)
+        degseq = []
+        
+        for graph in setting:
+            degseq.extend(sorted([d for n, d in graph.degree()], reverse=True))  # degree sequence
+            
+        degreeCount = collections.Counter(degseq)
+        deg, cnt = zip(*degreeCount.items())
+        cnt = np.array(cnt)/gnum
+        
+        degs.append(deg)
+        degCounts.append(cnt)
+    
+    fig = plt.figure(figsize = (10, 4))#(15,10))
+    ax1 = fig.add_subplot(121)
+    ax2 = fig.add_subplot(122)
+    #axtotal = fig.add_subplot(111, frameon=False)
+    #axtotal.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+    
+    ax1.bar(degs[0], degCounts[0], width = 0.80, color = '#00a39c')
+    ax2.bar(degs[1], degCounts[1], width = 0.80, color = '#00a39c')
+    ax1.set_xlabel("degree")
+    ax2.set_xlabel("degree")
+    ax1.set_ylabel("average frequency")
+    ax2.set_ylabel("average frequency")
+    ax1.set_title("random networks")
+    ax2.set_title("scale-free networks")
+    #ax1.set_xlabel("random network")
+    #ax2.set_xlabel("scale-free network")
+# =============================================================================
+#     fig, ax = plt.subplots()
+#     plt.bar(deg, cnt, width=0.80, color='#00a39c')
+# =============================================================================
+    
+    #plt.ylabel("average frequency")
+    #plt.xlabel("degree")
+        
+    plt.show()    
     
 
 def betaplot(totaldat, betalist):
@@ -1027,7 +1177,6 @@ def betaplot(totaldat, betalist):
     ax1.set_ylabel('strategy values')
     
 
-    
     """
     degreeperc = [round(d/100.0, 2) for d in degrees]
     
@@ -1200,10 +1349,10 @@ if __name__ == '__main__':
     # HYPERPARAM
     # =============================================================================
     
-    simulations = 50 #100
+    simulations = 100
     rounds = 10000#10000
     agentCount = 60
-    edgeDegree = 6
+    edgeDegree = 4
     
     selectionStyle = "Fermi"      # 0: unconditional, 1: proportional, 2: Fermi
     selectionIntensity = 10 # the bèta in the Fermi-equation
@@ -1214,10 +1363,10 @@ if __name__ == '__main__':
     # GAME SETTINGS
     # =============================================================================
     
-    randomRoles = False  # if false, focal agent is assigned role randomly
+    randomRoles = True  # if false, focal agent is assigned role randomly
   
     noise = True        # noise implemented as [strategy to exploit] ± noise_e 
-    noise_e = 0.01 
+    noise_e = 0.01
     alpha = noise_e/2
     
     updating = 0            # 0 : all agents update; 1 : at random (n) agents update
@@ -1267,33 +1416,65 @@ if __name__ == '__main__':
     
 #    betaList = []
     #probabilities = [0.0, 0.015, 0.035, 0.05, 0.07, 0.085, 0.105, 0.13, 0.15, 0.17, 0.2, 0.225, 0.25, 0.28500000000000003, 0.315, 0.355, 0.395, 0.45, 0.525, 0.61, 0.915]
-    probabilities = [0.0, 0.035, 0.07, 0.105, 0.15, 0.2, 0.25, 0.315, 0.395, 0.525, 0.915]
+    #probabilities = [0.0, 0.035, 0.07, 0.105, 0.15, 0.2, 0.25, 0.315, 0.395, 0.525, 0.915]
+    
     #probabilities = [0.0, 0.915]
-    for p in probabilities:
+    
+    gg = Graph()
+    graphSet = []
+    gdataSet = []
+    
+# =============================================================================
+#     W A T T S - S T R O G A T Z   N E T W O R K    S E T   G E N E R A T O R
+#     for p in probabilities:
+#         problist = []
+#         gdatproblist = []
+#         for sim in range(simulations):
+#             currgraph, gdata = gg.createSWN(p)        
+#             problist.append(currgraph)
+#             gdatproblist.append(gdata)
+#         graphSet.append(problist)
+#         gdataSet.append(gdatproblist)
+# =============================================================================
+    
+    RNDlist = []
+    RNDdata = []
+    SFNlist = []
+    SFNdata = []
+    
+    if edgeDegree % 2 != 0:
+        raise ValueError("Average amount of edges cannot be odd. edgeDegree = {0}".format(edgeDegree))
+    m_value = int(edgeDegree/2)
+    
+    for sim in range(simulations):
+        RNDtot = gg.createSWN(1.0)
+        SFNtot = gg.createSFN(m_value)
+        
+        if len(RNDtot[0]) != agentCount or len(SFNtot[0]) != agentCount:
+            raise ValueError("agents incorrectly replaced")
+        
+        RNDlist.append(RNDtot[0])
+        RNDdata.append(RNDtot[1])
+        SFNlist.append(SFNtot[0])
+        SFNdata.append(SFNtot[1])
+    
+    graphSet = [RNDlist, SFNlist]
+    gdataSet = [RNDdata, SFNdata]
+    
+    for i in range(len(graphSet)):
         
 #        print("current run: beta = {0}".format(selectionIntensity))
 #        betaList.append(selectionIntensity)
-        print("current run: probability = {0}".format(p))
+        #print("current run: probability = {0}".format(p))
         
 #       p = 0.1
-        gg = Graph()
-        graphList = []
-        gdatalist = []
+        graphList = graphSet[i]
+        gdataList = gdataSet[i]
         
-        for sim in range(simulations):
-            currgraph, gdata = gg.createSWN(p)        
-            graphList.append(currgraph)
-            gdatalist.append(gdata)
-        
-        g = 'Watts-Strogatz'
-        
-        positions = nx.kamada_kawai_layout(currgraph)
+        #positions = nx.kamada_kawai_layout(currgraph)
         
         edgeList = [str(edge) for edge in graphList[0].edges]
-        agentList = ["Agent %d" % agent for agent in range(0,agentCount)]
-        
-        if len(currgraph) != agentCount:
-            raise ValueError("agents incorrectly replaced")
+        agentList = ["Agent %d" % agent for agent in range(0, agentCount)]
         
         start = process_time()
         
@@ -1305,9 +1486,9 @@ if __name__ == '__main__':
 # =============================================================================
         
         gamedat, edgedat = Simulation().run(graphList)
-        totaldata.append((gamedat[-1], edgedat[-1], *list(gdata.values())))
+        totaldata.append((gamedat[-1], edgedat[-1], gdataList))
+        
         #generateImg(graph, g, positions, gamedat, edgedat, i)
-                
 # =============================================================================
 #         if logging == True:
 #             file.close()
@@ -1318,13 +1499,23 @@ if __name__ == '__main__':
         stop = process_time()
         times.append(stop-start)
         
-        
+       
         
         #if dataStore == True:
         #    dataHandling(gamedat, edgedat)
     
-    ex1plot(totaldata, probabilities)
-        
+#    ex1plot(totaldata, probabilities)
+    edges = []
+    for graphs in graphSet:
+        edgtemp = 0
+        for graph in graphs:
+            edgtemp += len(graph.edges)
+        edges.append(edgtemp/simulations)
+    print(edges)
+    
+    datastoreSims(totaldata[0][0], 'random')
+    
+    ex2plot(totaldata, graphSet)    
     #betaplot with betas [5, 10, 15, 20, 25, 30]
     #betaplot(totaltotaldata, betaList)
     
@@ -1332,36 +1523,22 @@ if __name__ == '__main__':
     
     print("average process time: {0} s\ntotal process time: {1} s\nall process times: {2}".format(mean(times), sum(times), times))
 
-dataHandling(totaldata)
 
+#dataHandling(totaldata)
 
-times = [0, 0, 0]
-c = 100000
-
-for i in range(c):
-    a = {"offer" : 0.3, "accept" : 0.3}
-    start1 = process_time()
-    for i in range(100):
-        a["offer"] = 0.5
-        a["accept"] = 0.4
-        b = a
-    stop1 = process_time()
-    times[0] += (stop1-start1)
+# =============================================================================
+# 
+# gg = Graph()
+# graffdat = []
+# for m in range(10):#[2,2,2,2,4,4,4,4,6,6,6,6]:#np.arange(2, , step=1):
+#     print(m)
+#     grph, gdatz = gg.createSFN(edgeDegree)
+#     graffdat.append(gdatz)
+#     plt.figure(figsize = (9,9))
+#     nx.draw_kamada_kawai(grph, with_labels=True, edge_color = '#00a39c', node_color = '#ff6960', alpha=0.63, node_size = 300, width = 1)
+#     plt.show()
+#     print(list(gdatz.values())[0:3])
+#     degree_hist(grph)
+# 
+# =============================================================================
     
-    start2 = process_time()
-    
-    for i in range(100):
-        a = {"offer" : 0.5, "accept" : 0.4}
-        b = a
-    stop2 = process_time()
-    times[1] += (stop2 - start2)
-    
-    start3 = process_time()
-    for i in range(100):
-        a, b = ({"offer" : 0.5, "accept" : 0.4}, ) * 2
-    stop3 = process_time()
-    times[2] += (stop3-start3)
-print(type(times))
-print(type(b))
-print(times[0]/c, times[1]/c, times[2]/c)
-
