@@ -957,10 +957,9 @@ def ex2plot(totaldat, graphs):
         nx.draw_kamada_kawai(graphs[i][0], with_labels=True, edge_color = '#00a39c', node_color = '#ff6960', alpha=0.63, node_size = 300, width = 1)
     
     degree_hist(graphs)
-    
         
     
-def ex1plot(totaldat, probs):
+def ex1plot(totaldat, probs, graphs):
     
     allpq = []
     totalp = []
@@ -981,10 +980,11 @@ def ex1plot(totaldat, probs):
         p_list, q_list = stratlist
         allpq.append(stratlist)
         
-        totalp.append(np.mean(p_list))
-        totalpvar.append(np.std(p_list))
-        totalq.append(np.mean(q_list))
-        totalqvar.append(np.std(q_list))
+        totalp.append(p_list.mean(axis=0).mean(axis=0))
+        totalpvar.append(p_list.mean(axis=0).var(axis=0))
+        totalq.append(q_list.mean(axis=0).mean(axis=0))
+        totalqvar.append(q_list.mean(axis=0).var(axis=0))
+        
         p_labels = np.array(p_list)
         q_labels = np.array(q_list)
         
@@ -1003,28 +1003,48 @@ def ex1plot(totaldat, probs):
     totalqvar = np.array(totalqvar)
     #print(totalpvar, totalqvar)
     
-    writestats([totalp, totalq], [totalpvar, totalqvar])
+    #writestats([totalp, totalq], [totalpvar, totalqvar])
     #print(totalp, totalq)
     
     tot_labels = np.asarray(tot_labels, dtype='int')
-    
+    print(tot_labels.shape)
+    print("all ok")
     stratStyles = OrderedDict({'altruist' : [], 'demand' : [], 'sgpn' : [], 'exploit': []})
-    for sim in tot_labels:
-        lab = Counter(sim)
+    for probset in tot_labels:
+        simlist = []
+        for sim in probset.T:
+            simlist.extend(sim)
+        labels = Counter(simlist)
+        #lab, nrs = zip(*labels.items())
+        #nrs = np.array(nrs)/simulations
+        #labeldict = {k:v for k,v in zip(lab, nrs)}
+        print(labels)
+        print(labels[3])
         for i, key in enumerate(stratStyles):
-            stratStyles[key].append(lab[i+1]/agentCount)    
-    b = [totalp, totalq, stratStyles['altruist'], stratStyles['demand'], stratStyles['sgpn'], stratStyles['exploit']]
+            stratStyles[key].append(labels[i+1]/simulations)
+    print(stratStyles)
+        # for i, key in enumerate(stratStyles):
+        #     stratStyles[key].append(lab[i+1]/agentCount)    
+    #b = [totalp, totalq, stratStyles['altruist'], stratStyles['demand'], stratStyles['sgpn'], stratStyles['exploit']]
     
     #savestats = pd.DataFrame(np.array(b).T)
     #savestats.to_csv("Data/degreestatsN=100.parquet", header=None, index=None)
-        
-    fig = plt.figure(figsize = (10, 10))#(15,10))
+    
+    omegaList = []
+    for setting in graphs:
+        omegatemp = []
+        for gr in setting:
+            omegatemp.append(nx.omega(gr))
+        omegaList.append(np.array(omegatemp) / len(setting))
+    
+    fig = plt.figure(figsize = (10, 5))#(15,10))
     ax1 = fig.add_subplot(211)
     #ax2 = fig.add_subplot(212)
     
     ax1.set_ylim([0, 0.5])
     ax1.plot(probs, totalp, 'r', label = 'average p')
     ax1.plot(probs, totalq, 'b', label = 'average q')
+    ax1.plot(probs, omegaList, 'dimgray', label = chr(969))
     ax1.fill_between(probs, totalp - totalpvar, totalp + totalpvar, alpha=0.2, color='red')
     ax1.fill_between(probs, totalq - totalqvar, totalq + totalqvar, alpha=0.2, color='blue')
     ax1.legend()
@@ -1080,38 +1100,40 @@ def ex1plot(totaldat, probs):
 #     #ax2.legend(bars, [b.get_label() for b in bars])
 #     
 #     plt.savefig("Images/ex1firsttry.png")
-    
-    fig2 = plt.figure(figsize = (12, 5))
-    ax_strats = fig2.add_subplot(121)
-    axheat = fig2.add_subplot(122)
-    
-    
-    # hist & hist2d prep
-    phist, qhist = allpq[-1]
-    print(phist)
-    heatbins = np.linspace(0.0, 1.0, 40)
-    histbins = np.linspace(0.0, 1.0, 40)
-    dat, p, q = np.histogram2d(qhist, phist, bins=heatbins, density=False)
-    ext = [q[0], q[-1], p[0], p[-1]]
-    
-    # heatmap(hist2d)
-    im = axheat.imshow(dat.T, origin='lower', cmap = plt.cm.viridis, interpolation = 'spline36', extent = ext)#hist2d([], [], bins=20, cmap=plt.cm.BuGn)
-    axheat.set_xlabel("accepts (q)")
-    axheat.set_ylabel("offers (p)")
-    fig.colorbar(im, ax=axheat, shrink=0.9)
-    
-    # hist
-    n, bins, patches = ax_strats.hist(phist, histbins, density=0, facecolor='red', alpha=0.5, label='offers (p)')
-    n, bins, patches = ax_strats.hist(qhist, histbins, density=0, facecolor='midnightblue', alpha=0.5, label = 'accepts (q)')
-    #y1 = sc.stats.norm.pdf(histbins, phist.mean(axis=0), phist.std(axis=0))
-    #y2 = sc.stats.norm.pdf(histbins, qhist.mean(axis=0), qhist.std(axis=0))
-    #ax_strats.plot(histbins, y1, 'red', '--', alpha = 0.6)
-    #ax_strats.plot(histbins, y2, 'midnightblue', '--', alpha = 0.6)
-    ax_strats.legend(loc='upper right')
-    ax_strats.set_xlabel('strategy value')
-    ax_strats.set_ylabel('frequency')
-    
 # =============================================================================
+    for prob_pq in allpq:
+        fig2 = plt.figure(figsize = (12, 5))
+        ax_strats = fig2.add_subplot(121)
+        axheat = fig2.add_subplot(122)
+        
+        # hist & hist2d prep
+        phist, qhist = prob_pq[1]
+    
+        phist = phist.flatten()
+        qhist = qhist.flatten()
+        
+        heatbins = np.linspace(0.0, 1.0, 40)
+        histbins = np.linspace(0.0, 1.0, 40)
+        dat, p, q = np.histogram2d(qhist, phist, bins=heatbins, density=False)
+        ext = [q[0], q[-1], p[0], p[-1]]
+        
+        # heatmap(hist2d)
+        im = axheat.imshow(dat.T, origin='lower', cmap = plt.cm.viridis, interpolation = 'spline36', extent = ext)#hist2d([], [], bins=20, cmap=plt.cm.BuGn)
+        axheat.set_xlabel("accepts (q)")
+        axheat.set_ylabel("offers (p)")
+        fig.colorbar(im, ax=axheat, shrink=0.9)
+        
+        # hist
+        n, bins, patches = ax_strats.hist(phist, histbins, density=0, facecolor='red', alpha=0.5, label='offers (p)')
+        n, bins, patches = ax_strats.hist(qhist, histbins, density=0, facecolor='midnightblue', alpha=0.5, label = 'accepts (q)')
+        #y1 = sc.stats.norm.pdf(histbins, phist.mean(axis=0), phist.std(axis=0))
+        #y2 = sc.stats.norm.pdf(histbins, qhist.mean(axis=0), qhist.std(axis=0))
+        #ax_strats.plot(histbins, y1, 'red', '--', alpha = 0.6)
+        #ax_strats.plot(histbins, y2, 'midnightblue', '--', alpha = 0.6)
+        ax_strats.legend(loc='upper right')
+        ax_strats.set_xlabel('strategy value')
+        ax_strats.set_ylabel('frequency')
+
 
 
 def degree_hist(graphset):
@@ -1362,7 +1384,7 @@ if __name__ == '__main__':
     selectionStyle = "Fermi"      # 0: unconditional, 1: proportional, 2: Fermi
     selectionIntensity = 10 # the bèta in the Fermi-equation
     
-    explore = 0.005       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
+    explore = 0.001       # with prob [explore], agents adapt strategy randomly. prob [1 - explore] = unconditional/proportional imit
 
     # =============================================================================
     # GAME SETTINGS
@@ -1505,12 +1527,9 @@ if __name__ == '__main__':
         stop = process_time()
         times.append(stop-start)
         
-       
-        
         #if dataStore == True:
         #    dataHandling(gamedat, edgedat)
     
-#    ex1plot(totaldata, probabilities)
 # =============================================================================
 #     edges = []
 #     for graphs in graphSet:
@@ -1523,7 +1542,9 @@ if __name__ == '__main__':
 # =============================================================================
     #datastoreSims(totaldata[0][0], 'random')
     
-    #ex2plot(totaldata, graphSet)    
+    #ex2plot(totaldata, graphSet) 
+    ex1plot(totaldata, probabilities, graphSet)
+
     #betaplot with betas [5, 10, 15, 20, 25, 30]
     #betaplot(totaltotaldata, betaList)
     
