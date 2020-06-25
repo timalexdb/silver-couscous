@@ -625,8 +625,8 @@ def datastoreSims(inputdata, setting):
     gameData = pd.DataFrame(data = inputdata, index = range(1), columns = indexGame)
     gameData.columns = gameData.columns.map(str)
     #gameData.to_parquet("Experiment1/WS_s={3}_n={0}_k={1}_p={2}_er={4}.parquet".format(agentCount, edgeDegree, p, simulations, explore))
-    gameData.to_parquet("Experiment1/{4}_s={2}_n={0}_k={1}_er={3}.parquet".format(agentCount, edgeDegree, simulations, explore, str(setting)))
-
+    gameData.to_parquet("Experiment1/new/{4}_s={2}_n={0}_k={1}_er={3}.parquet".format(agentCount, edgeDegree, simulations, explore, str(setting)))
+    print(setting)
 
 def dataHandling(gameSet):#, edgeTest):
     
@@ -958,7 +958,9 @@ def ex2plot(totaldat, graphs):
     
     degree_hist(graphs)
         
-    
+
+
+
 def ex1plot(totaldat, probs, graphs):
     
     allpq = []
@@ -981,9 +983,9 @@ def ex1plot(totaldat, probs, graphs):
         allpq.append(stratlist)
         
         totalp.append(p_list.mean(axis=0).mean(axis=0))
-        totalpvar.append(p_list.mean(axis=0).var(axis=0))
+        totalpvar.append(p_list.mean(axis=0).std(axis=0))
         totalq.append(q_list.mean(axis=0).mean(axis=0))
-        totalqvar.append(q_list.mean(axis=0).var(axis=0))
+        totalqvar.append(q_list.mean(axis=0).std(axis=0))
         
         p_labels = np.array(p_list)
         q_labels = np.array(q_list)
@@ -1018,43 +1020,66 @@ def ex1plot(totaldat, probs, graphs):
         #lab, nrs = zip(*labels.items())
         #nrs = np.array(nrs)/simulations
         #labeldict = {k:v for k,v in zip(lab, nrs)}
-        print(labels)
-        print(labels[3])
+        #print(labels)
+        #print(labels[3])
         for i, key in enumerate(stratStyles):
             stratStyles[key].append(labels[i+1]/simulations)
-    print(stratStyles)
+    #print(stratStyles)
         # for i, key in enumerate(stratStyles):
         #     stratStyles[key].append(lab[i+1]/agentCount)    
     #b = [totalp, totalq, stratStyles['altruist'], stratStyles['demand'], stratStyles['sgpn'], stratStyles['exploit']]
     
     #savestats = pd.DataFrame(np.array(b).T)
-    #savestats.to_csv("Data/degreestatsN=100.parquet", header=None, index=None)
+    #savestats.to_csv("Data/degreestatsN=100.parquet", header=None, index=None)    
     
-    omegaList = []
-    for setting in graphs:
-        omegatemp = []
-        for gr in setting:
-            omegatemp.append(nx.omega(gr))
-        omegaList.append(np.array(omegatemp) / len(setting))
-    
-    fig = plt.figure(figsize = (10, 5))#(15,10))
+    fig = plt.figure(figsize = (8, 5))#(15,10))
     ax1 = fig.add_subplot(211)
     #ax2 = fig.add_subplot(212)
+    ax_swn = ax1.twinx()
     
     ax1.set_ylim([0, 0.5])
     ax1.plot(probs, totalp, 'r', label = 'average p')
     ax1.plot(probs, totalq, 'b', label = 'average q')
-    ax1.plot(probs, omegaList, 'dimgray', label = chr(969))
-    ax1.fill_between(probs, totalp - totalpvar, totalp + totalpvar, alpha=0.2, color='red')
-    ax1.fill_between(probs, totalq - totalqvar, totalq + totalqvar, alpha=0.2, color='blue')
-    ax1.legend()
+    ax1.fill_between(probs, totalp - totalpvar, totalp + totalpvar, alpha=0.15, color='red')
+    ax1.fill_between(probs, totalq - totalqvar, totalq + totalqvar, alpha=0.15, color='blue')
     ax1.set_xscale('symlog', linthreshx=0.00999)
     ax1.set_xticks([0, 0.01, 0.1, 1])
     ax1.set_xlim(xmin=-0.0001, xmax=1.05)
     ax1.get_xaxis().set_major_formatter(tck.ScalarFormatter())
     
+    #print(totalp)
+    #print(totalpvar)
+    #print(totalq)
+    #print(totalqvar)
+    
     ax1.set_xlabel('rewiring probability')
     ax1.set_ylabel('strategy values')
+    
+    # S M A L L - W O R L D N E S S
+
+    # omegaList = []
+    # print(len(graphs))
+    # for setting in graphs:
+    #     # omegatemp = []
+    #     # print(setting[:2])
+    #     # for gr in setting[:1]:
+    #     #     omegatemp.append(nx.omega(gr))
+        
+    #     #omegaList.append(np.array(omegatemp) / len(setting[:2]))
+    #     gr = setting[0]
+    #     omegaList.append(nx.omega(gr))
+    omegaList = [-0.6103799283154121, -0.4014478150275076, -0.1500626123612917,-0.066543601507847, 0.24363851727982166, 0.38774445893089954,
+                 0.5462974429235774, 0.5446757189047882, 0.6119171753025963, 0.8235778786211955, 0.9370779741235721]
+    
+    swn_probs = [probs[i-1] for i in range(len(probs)+1) if i % 2 != 0]
+    
+    ax_swn.plot(swn_probs, omegaList, color='dimgray', label = chr(969), linewidth = 0.7)
+    
+    ax_swn.set_ylabel('small-worldness ({0})'.format(chr(969)), color='dimgray')
+    ax_swn.tick_params(axis='y', labelcolor='dimgray')
+    ax_swn.set_ylim([-1, 1])
+    ax_swn.axhline(y=0, linestyle = ':', color='dimgray', linewidth = 1)
+    ax1.legend()
 
     #vals = ax1.get_xticks()
     #ax1.set_xticklabels(['{:.0f}%'.format(val*100) for val in vals])
@@ -1080,34 +1105,26 @@ def ex1plot(totaldat, probs, graphs):
 #     lines = [l1, l2, l3, l4]
 #     ax2.legend(lines, [l.get_label() for l in lines])
 # =============================================================================
+    indices = []
+    newprobs = [0.0, 0.085, 0.105, 0.915]
+    for p in newprobs:
+        indices.append(probs.index(p))
+    #indices = [index for index in range(len(probs)) for p in ['0.0, 0.085, 0.105, 0.915'] if probs[index] == p]
+        
+    print(totalp[indices])
+    print(totalpvar[indices])
+    print(totalq[indices])
+    print(totalqvar[indices])
     
-# =============================================================================
-#     w=0.01
-#     ax2.set_xlim(0-w*3, 1)
-#     ax2.set_ylim(0,1)
-#     probs = np.array(probs)
-#     #print(stratStyles.())
-#     ax2.bar(probs-w*2, stratStyles['altruist'], width=w, color = altruistC, label = 'altruist')
-#     ax2.bar(probs-w, stratStyles['demand'], width=w, color = demandC, label = 'demand')
-#     ax2.bar(probs+w, stratStyles['sgpn'], width=w, color = sgpnC, label = 'sgpn')
-#     ax2.bar(probs+w*2, stratStyles['exploit'], width=w, color = exploitC, label = 'exploit')
-#     ax2.legend()
-#     #ax2.set_xscale('symlog', linthreshx=0.00999)
-#     #ax2.set_xticks([0, 0.01, 0.1, 1])
-#     #ax2.set_xlim(xmin=-0.0001, xmax=1.05)
-#     #ax2.get_xaxis().set_major_formatter(tck.ScalarFormatter())
-#     #bars = [b1, b2, b3, b4]
-#     #ax2.legend(bars, [b.get_label() for b in bars])
-#     
-#     plt.savefig("Images/ex1firsttry.png")
-# =============================================================================
-    for prob_pq in allpq:
-        fig2 = plt.figure(figsize = (12, 5))
+    pqrelevant = np.array(allpq)[indices]
+    
+    for i, prob_pq in enumerate(pqrelevant):
+        fig2 = plt.figure(figsize = (9, 4))
         ax_strats = fig2.add_subplot(121)
         axheat = fig2.add_subplot(122)
-        
+        fig2.suptitle('{1} = {0}'.format(newprobs[i], r'$p_{rewire}$'))
         # hist & hist2d prep
-        phist, qhist = prob_pq[1]
+        phist, qhist = prob_pq
     
         phist = phist.flatten()
         qhist = qhist.flatten()
@@ -1133,8 +1150,33 @@ def ex1plot(totaldat, probs, graphs):
         ax_strats.legend(loc='upper right')
         ax_strats.set_xlabel('strategy value')
         ax_strats.set_ylabel('frequency')
+        plt.show(fig2)
+        plt.close(fig2)
+        
 
 
+def demographics(totaldata, probs, stratStyles):
+    
+    fig = plt.figure(figsize = (10, 5))
+    ax2 = fig.add_subplot(111)
+    
+    w=0.01
+    ax2.set_xlim(0-w*3, 1)
+    ax2.set_ylim(0,1)
+    probs = np.array(probs)
+    #print(stratStyles.())
+    ax2.bar(probs-w*2, stratStyles['altruist'], width=w, color = altruistC, label = 'altruist')
+    ax2.bar(probs-w, stratStyles['demand'], width=w, color = demandC, label = 'demand')
+    ax2.bar(probs+w, stratStyles['sgpn'], width=w, color = sgpnC, label = 'sgpn')
+    ax2.bar(probs+w*2, stratStyles['exploit'], width=w, color = exploitC, label = 'exploit')
+    ax2.legend()
+    #ax2.set_xscale('symlog', linthreshx=0.00999)
+    #ax2.set_xticks([0, 0.01, 0.1, 1])
+    #ax2.set_xlim(xmin=-0.0001, xmax=1.05)
+    #ax2.get_xaxis().set_major_formatter(tck.ScalarFormatter())
+    #bars = [b1, b2, b3, b4]
+    #ax2.legend(bars, [b.get_label() for b in bars])
+    
 
 def degree_hist(graphset):
     degs = []
@@ -1442,8 +1484,8 @@ if __name__ == '__main__':
 # =============================================================================
     
 #    betaList = []
-    #probabilities = [0.0, 0.015, 0.035, 0.05, 0.07, 0.085, 0.105, 0.13, 0.15, 0.17, 0.2, 0.225, 0.25, 0.28500000000000003, 0.315, 0.355, 0.395, 0.45, 0.525, 0.61, 0.915]
-    probabilities = [0.0, 0.035, 0.07, 0.105, 0.15, 0.2, 0.25, 0.315, 0.395, 0.525, 0.915]
+    probabilities = [0.0, 0.015, 0.035, 0.05, 0.07, 0.085, 0.105, 0.13, 0.15, 0.17, 0.2, 0.225, 0.25, 0.28500000000000003, 0.315, 0.355, 0.395, 0.45, 0.525, 0.61, 0.915]
+    #probabilities = [0.0, 0.035, 0.07, 0.105, 0.15, 0.2, 0.25, 0.315, 0.395, 0.525, 0.915]
     
     #probabilities = [0.0, 0.915]
     
@@ -1498,9 +1540,7 @@ if __name__ == '__main__':
         
         graphList = graphSet[i]
         gdataList = gdataSet[i]
-        
-        #positions = nx.kamada_kawai_layout(currgraph)
-        
+                
         edgeList = [str(edge) for edge in graphList[0].edges]
         agentList = ["Agent %d" % agent for agent in range(0, agentCount)]
         
@@ -1538,9 +1578,12 @@ if __name__ == '__main__':
 #             edgtemp += len(graph.edges)
 #         edges.append(edgtemp/simulations)
 #     print(edges)
-#     
 # =============================================================================
-    #datastoreSims(totaldata[0][0], 'random')
+    
+# =============================================================================
+#     for i, p in enumerate(probabilities):
+#         datastoreSims(totaldata[i][0], 'prob={0}'.format(p))
+# =============================================================================
     
     #ex2plot(totaldata, graphSet) 
     ex1plot(totaldata, probabilities, graphSet)
@@ -1555,19 +1598,5 @@ if __name__ == '__main__':
 
 #dataHandling(totaldata)
 
-# =============================================================================
-# 
-# gg = Graph()
-# graffdat = []
-# for m in range(10):#[2,2,2,2,4,4,4,4,6,6,6,6]:#np.arange(2, , step=1):
-#     print(m)
-#     grph, gdatz = gg.createSFN(edgeDegree)
-#     graffdat.append(gdatz)
-#     plt.figure(figsize = (9,9))
-#     nx.draw_kamada_kawai(grph, with_labels=True, edge_color = '#00a39c', node_color = '#ff6960', alpha=0.63, node_size = 300, width = 1)
-#     plt.show()
-#     print(list(gdatz.values())[0:3])
-#     degree_hist(grph)
-# 
-# =============================================================================
+
     
