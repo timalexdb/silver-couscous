@@ -216,7 +216,7 @@ class Graph:
         
          
     def createSFN(self, m, sfn_rate):
-        SFN = altered_SFN(agentCount, m, sfn_rate)#nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+        SFN = self.altered_SFN(agentCount, m, sfn_rate)#nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
         SFNcharacteristics = Graph.graphCharacteristics(SFN)
         
         fnameSFN = "Barabasi-Albert_n{0}_sim{1}_m={2}".format(agentCount, simulations, m)
@@ -259,7 +259,7 @@ class Graph:
         return(SWN, self.graphData[fnameSWN]) #self.graphs, self.graphData[fnameSWN])
     
     
-    def pickRandom(seq, m, sfn_rate):
+    def pickRandom(self, seq, m, sfn_rate):
         targets = set()
         
         seq_items, seq_vals = zip(*Counter(seq).items())
@@ -273,7 +273,7 @@ class Graph:
         return targets
     
     
-    def altered_SFN(n, m, sfn_rate):
+    def altered_SFN(self, n, m, sfn_rate):
         """Returns a random graph according to the Barabási–Albert preferential
         attachment model.
     
@@ -329,7 +329,7 @@ class Graph:
 #        prob_dist = [1/len_select] * len_select
             # Now choose m unique nodes from the existing nodes
             # Pick uniformly from repeated_nodes (preferential attachment)
-            targets = pickRandom(repeated_nodes, m, sfn_rate)
+            targets = self.pickRandom(repeated_nodes, m, sfn_rate)
             source += 1
         return G
         
@@ -1561,7 +1561,7 @@ if __name__ == '__main__':
 # =============================================================================
     
 #    betaList = []
-    probabilities = [0.0, 0.015, 0.035, 0.05, 0.07, 0.085, 0.105, 0.13, 0.15, 0.17, 0.2, 0.225, 0.25, 0.28500000000000003, 0.315, 0.355, 0.395, 0.45, 0.525, 0.61, 0.915]
+    #probabilities = [0.0, 0.015, 0.035, 0.05, 0.07, 0.085, 0.105, 0.13, 0.15, 0.17, 0.2, 0.225, 0.25, 0.28500000000000003, 0.315, 0.355, 0.395, 0.45, 0.525, 0.61, 0.915]
     #probabilities = [0.0, 0.035, 0.07, 0.105, 0.15, 0.2, 0.25, 0.315, 0.395, 0.525, 0.915]
     
     #probabilities = [0.0, 0.915]
@@ -1570,50 +1570,37 @@ if __name__ == '__main__':
     graphSet = []
     gdataSet = []
     
-    #W A T T S - S T R O G A T Z   N E T W O R K    S E T   G E N E R A T O R
-    for prob in probabilities:
-        problist = []
-        gdatproblist = []
+# =============================================================================
+#     #W A T T S - S T R O G A T Z   N E T W O R K    S E T   G E N E R A T O R
+#     for prob in probabilities:
+#         problist = []
+#         gdatproblist = []
+#         for sim in range(simulations):
+#             currgraph, gdata = gg.createSWN(prob)        
+#             problist.append(currgraph)
+#             gdatproblist.append(gdata)
+#         graphSet.append(problist)
+#         gdataSet.append(gdatproblist)
+# =============================================================================
+        
+    # S F N   N E T W O R K    S E T   G E N E R A T O R
+    sfn_ratelist = np.arange(0, 2.2, 0.2)
+    
+    for sfn_rate in sfn_ratelist:
+        gtemp = []
+        gdattemp = []
         for sim in range(simulations):
-            currgraph, gdata = gg.createSWN(prob)        
-            problist.append(currgraph)
-            gdatproblist.append(gdata)
-        graphSet.append(problist)
-        gdataSet.append(gdatproblist)
-    
-# =============================================================================
-#     RNDlist = []
-#     RNDdata = []
-#     SFNlist = []
-#     SFNdata = []
-#     
-#     if edgeDegree % 2 != 0:
-#         raise ValueError("Average amount of edges cannot be odd. edgeDegree = {0}".format(edgeDegree))
-#     m_value = int(edgeDegree/2)
-#     
-#     for sim in range(simulations):
-#         RNDtot = gg.createSWN(1.0)
-#         SFNtot = gg.createSFN(m_value)
-#         
-#         if len(RNDtot[0]) != agentCount or len(SFNtot[0]) != agentCount:
-#             raise ValueError("agents incorrectly replaced")
-#         
-#         RNDlist.append(RNDtot[0])
-#         RNDdata.append(RNDtot[1])
-#         SFNlist.append(SFNtot[0])
-#         SFNdata.append(SFNtot[1])
-#     
-#     graphSet = [RNDlist, SFNlist]
-#     gdataSet = [RNDdata, SFNdata]
-# =============================================================================
-    
-    for i in range(len(graphSet)):
+            currgraph, gdata = gg.createSFN(4, sfn_rate)
+            
+            gtemp.append(currgraph)
+            gdattemp.append(gdata)
+        graphSet.append(gtemp)
+        gdataSet.append(gdattemp)
         
-#        print("current run: beta = {0}".format(selectionIntensity))
-#        betaList.append(selectionIntensity)
-        #print("current run: probability = {0}".format(p))
         
-        p = probabilities[i]
+    for i in range(len(sfn_ratelist)):
+#        p = probabilities[i]
+        print("now in setting sfw_rate = {0}".format(sfn_ratelist[i]))
         
         graphList = graphSet[i]
         gdataList = gdataSet[i]
