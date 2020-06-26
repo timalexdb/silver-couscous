@@ -146,6 +146,7 @@ class Agent:
 # =============================================================================
         return(self.model.fitness - self.fitness)
 
+
     def comparisonMethods(self, argument):
 # =============================================================================
 #         # returns function based on update rule setting
@@ -173,6 +174,7 @@ class Agent:
             raise ValueError("randomise returns value over 1.0. p = {0}, q = {1}".format(strategy[0], strategy[1]))
         return(strategy)
 
+
     def exploration(self):
 # =============================================================================
 #         # explore is pre-defined value by user. nextstrat and strategy both updated.
@@ -181,6 +183,7 @@ class Agent:
         if random.random() < explore:
             self.nextstrat = self.randomise()                    
             self.strategy = self.nextstrat[:]
+    
     
     def changeStrat(self):
 # =============================================================================
@@ -195,6 +198,7 @@ class Agent:
 # =============================================================================
             self.nextstrat = (min(max(self.nextstrat[0] + next(self.noiseGen), 0), 1), min(max(self.nextstrat[1] + next(self.noiseGen), 0), 1))
         self.strategy = self.nextstrat[:]
+
 
     def kill(self):
         del self
@@ -211,8 +215,8 @@ class Graph:
         self.graphs = []
         
          
-    def createSFN(self, m):
-        SFN = nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
+    def createSFN(self, m, sfn_rate):
+        SFN = altered_SFN(agentCount, m, sfn_rate)#nx.barabasi_albert_graph(agentCount, m) # scale-free network characterised by having vastly differing degrees (hence scale-free), small amount of large hubs
         SFNcharacteristics = Graph.graphCharacteristics(SFN)
         
         fnameSFN = "Barabasi-Albert_n{0}_sim{1}_m={2}".format(agentCount, simulations, m)
@@ -229,7 +233,6 @@ class Graph:
                       .format('Barabàsi-Albert', i, simulations, m, gg.graphData[fnameSFN]['APL'], gg.graphData[fnameSFN]['CC'], gg.graphData[fnameSFN]['SPavg']))
 
             plt.show()
-        #self.graphs.append(SFN)
     
         return(SFN, self.graphData[fnameSFN])
     
@@ -254,7 +257,81 @@ class Graph:
             plt.show()
     
         return(SWN, self.graphData[fnameSWN]) #self.graphs, self.graphData[fnameSWN])
-
+    
+    
+    def pickRandom(seq, m, sfn_rate):
+        targets = set()
+        
+        seq_items, seq_vals = zip(*Counter(seq).items())
+        seq_vals = np.array(seq_vals, dtype=float)
+        seq_vals += (seq_vals - 1) * sfn_rate
+        
+        while len(targets) < m:
+            nodes = np.random.choice(seq_items, size=m-len(targets), replace=True, p=(seq_vals / seq_vals.sum()))
+            for x in nodes:
+                targets.add(x)
+        return targets
+    
+    
+    def altered_SFN(n, m, sfn_rate):
+        """Returns a random graph according to the Barabási–Albert preferential
+        attachment model.
+    
+        A graph of $n$ nodes is grown by attaching new nodes each with $m$
+        edges that are preferentially attached to existing nodes with high degree.
+    
+        Parameters
+        ----------
+        n : int
+            Number of nodes
+        m : int
+            Number of edges to attach from a new node to existing nodes
+        seed : integer, random_state, or None (default)
+            Indicator of random number generation state.
+            See :ref:`Randomness<randomness>`.
+    
+        Returns
+        -------
+        G : Graph
+    
+        Raises
+        ------
+        NetworkXError
+            If `m` does not satisfy ``1 <= m < n``.
+    
+        References
+        ----------
+        .. [1] A. L. Barabási and R. Albert "Emergence of scaling in
+           random networks", Science 286, pp 509-512, 1999.
+        """
+    
+        if m < 1 or m >= n:
+            raise nx.NetworkXError("Barabási–Albert network must have m >= 1"
+                                   " and m < n, m = %d, n = %d" % (m, n))
+    
+        # Add m initial nodes (m0 in barabasi-speak)
+        G = nx.empty_graph(m)
+        # Target nodes for new edges
+        targets = list(range(m))
+        # List of existing nodes, with nodes repeated once for each adjacent edge
+        repeated_nodes = []
+        # Start adding the other n-m nodes. The first node is m.
+        source = m
+        while source < n:
+            # Add edges to m nodes from the source.
+            G.add_edges_from(zip([source] * m, targets))
+            # Add one node to the list for each new edge just created.
+            repeated_nodes.extend(targets)
+            # And the new node "source" has m edges to add to the list.
+            repeated_nodes.append(source)
+            # Create probability distribution with updated repeated_nodes
+#        len_select = len(repeated_nodes)
+#        prob_dist = [1/len_select] * len_select
+            # Now choose m unique nodes from the existing nodes
+            # Pick uniformly from repeated_nodes (preferential attachment)
+            targets = pickRandom(repeated_nodes, m, sfn_rate)
+            source += 1
+        return G
         
     def graphCharacteristics(g):
         APL = nx.average_shortest_path_length(g)    # average of all shortest paths between any node couple
@@ -1155,7 +1232,7 @@ def ex1plot(totaldat, probs, graphs):
         
 
 
-def demographics(totaldata, probs, stratStyles):
+def demographCalc(totaldata, probs, stratStyles):
     
     fig = plt.figure(figsize = (10, 5))
     ax2 = fig.add_subplot(111)
