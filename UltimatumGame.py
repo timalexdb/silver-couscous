@@ -680,9 +680,9 @@ class Simulation:
         
         gameTest = np.transpose(gameTest, (1,3,0,2))
 
-        storeName = "WS-p={0}".format(p)
+        #storeName = "WS-p={0}".format(p)
 
-        datastoreSims(gameTest, storeName)
+        #datastoreSims(gameTest, storeName)
         
         
         #gameTest = gameTest.mean(axis=3)
@@ -702,7 +702,7 @@ def datastoreSims(inputdata, setting):
     gameData = pd.DataFrame(data = inputdata, index = range(1), columns = indexGame)
     gameData.columns = gameData.columns.map(str)
     #gameData.to_parquet("Experiment1/WS_s={3}_n={0}_k={1}_p={2}_er={4}.parquet".format(agentCount, edgeDegree, p, simulations, explore))
-    gameData.to_parquet("Experiment1/new/{4}_s={2}_n={0}_k={1}_er={3}.parquet".format(agentCount, edgeDegree, simulations, explore, str(setting)))
+    gameData.to_parquet("Experiment2/newsfn_rate={4}_s={2}_n={0}_k={1}_er={3}.parquet".format(agentCount, edgeDegree, simulations, explore, str(setting)))
     print(setting)
 
 def dataHandling(gameSet):#, edgeTest):
@@ -1649,8 +1649,8 @@ if __name__ == '__main__':
 #         datastoreSims(totaldata[i][0], 'prob={0}'.format(p))
 # =============================================================================
     
-    #ex2plot(totaldata, graphSet) 
-    ex1plot(totaldata, probabilities, graphSet)
+    ex2plot(totaldata, graphSet) 
+    #ex1plot(totaldata, probabilities, graphSet)
 
     #betaplot with betas [5, 10, 15, 20, 25, 30]
     #betaplot(totaltotaldata, betaList)
@@ -1658,6 +1658,9 @@ if __name__ == '__main__':
     #degreeplot(totaldata, degrees)
     
     print("average process time: {0} s\ntotal process time: {1} s\nall process times: {2}".format(mean(times), sum(times), times))
+
+for i in range(len(totaldata)):
+    datastoreSims(totaldata[i][0], sfn_ratelist[i])
 
 
 #dataHandling(totaldata)
