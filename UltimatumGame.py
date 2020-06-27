@@ -338,8 +338,10 @@ class Graph:
         clust = nx.average_clustering(g)
         SPgraph, SPtotal = Graph.structuralPower(g)
         SPtotal = [round(SP, 4) for SP in SPtotal]
+        centrality = nx.betweenness_centrality(g)
         
-        charList = OrderedDict([('APL', APL), ('CC', clust), ('SPavg', SPgraph), ('SPnodes', SPtotal)])
+
+        charList = OrderedDict([('APL', APL), ('CC', clust), ('SPavg', SPgraph), ('SPnodes', SPtotal), ('centrality', centrality)])
         # for deg dist see https://networkx.github.io/documentation/stable/auto_examples/drawing/plot_degree_histogram.html
         return charList
 
@@ -972,6 +974,7 @@ def degreeplot(totaldat, degrees):
     lines = [p1, p2, p3]
     ax2.legend(lines, [l.get_label() for l in lines])
 
+
 def ex2plot(totaldat, graphs):
     
     totalp = []
@@ -1014,10 +1017,10 @@ def ex2plot(totaldat, graphs):
     totalqvar = np.array(totalqvar)
     
     fig = plt.figure(figsize = (10, 10))#(15,10))
-    ax1 = fig.add_subplot(211)
+    ax1 = fig.add_subplot(111)
     #ax2 = fig.add_subplot(212)
     
-    setting = ['RND', 'SFN']
+    setting = sfn_ratelist
     
     ax1.set_ylim([0, 0.5])
     ax1.plot(setting, totalp, 'r', label = 'average p')
@@ -1026,7 +1029,7 @@ def ex2plot(totaldat, graphs):
     ax1.fill_between(setting, totalq - totalqvar, totalq + totalqvar, alpha=0.2, color='blue')
     ax1.legend()
     
-    ax1.set_xlabel('setting')
+    ax1.set_xlabel('SFN rate')
     ax1.set_ylabel('strategy values')
     
     for i in range(2):
@@ -1034,6 +1037,7 @@ def ex2plot(totaldat, graphs):
         nx.draw_kamada_kawai(graphs[i][0], with_labels=True, edge_color = '#00a39c', node_color = '#ff6960', alpha=0.63, node_size = 300, width = 1)
     
     degree_hist(graphs)
+    degree_scat(totaldat)
         
 
 
@@ -1253,13 +1257,37 @@ def demographCalc(totaldata, probs, stratStyles):
     #ax2.get_xaxis().set_major_formatter(tck.ScalarFormatter())
     #bars = [b1, b2, b3, b4]
     #ax2.legend(bars, [b.get_label() for b in bars])
+
+
+def degree_scat(totaldat):
     
+    for i, setting in enumerate(sfn_ratelist):
+        
+        gamedata, edgedata, gdata = totaldat[i]
+        
+        centrality_list = gdata[0]['centrality']
+        central_items, central_vals = zip(*centrality_list.items())     
+        
+        *stratlist, u_list = gamedata.T
+
+        p_list, q_list = stratlist
+        
+        p_list = np.array(p_list)
+        q_list = np.array(q_list)
+        
+        diff = p_list - q_list
+        
+        fig = plt.figure(figsize = (5, 4))
+        ax1 = fig.add_subplot(111)
+        
+        ax1.scatter(central_vals, diff)
+
 
 def degree_hist(graphset):
     degs = []
     degCounts = []
     
-    for setting in graphset:
+    for i, setting in enumerate(graphset):
         gnum = len(setting)
         degseq = []
         
@@ -1273,32 +1301,21 @@ def degree_hist(graphset):
         degs.append(deg)
         degCounts.append(cnt)
     
-    fig = plt.figure(figsize = (10, 4))#(15,10))
-    ax1 = fig.add_subplot(121)
-    ax2 = fig.add_subplot(122)
-    #axtotal = fig.add_subplot(111, frameon=False)
-    #axtotal.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+        fig = plt.figure(figsize = (5, 4))#(15,10))
+        ax1 = fig.add_subplot(111)
     
-    ax1.bar(degs[0], degCounts[0], width = 0.80, color = '#00a39c')
-    ax2.bar(degs[1], degCounts[1], width = 0.80, color = '#00a39c')
-    ax1.set_xlabel("degree")
-    ax2.set_xlabel("degree")
-    ax1.set_ylabel("average frequency")
-    ax2.set_ylabel("average frequency")
-    ax1.set_title("random networks")
-    ax2.set_title("scale-free networks")
-    #ax1.set_xlabel("random network")
-    #ax2.set_xlabel("scale-free network")
-# =============================================================================
-#     fig, ax = plt.subplots()
-#     plt.bar(deg, cnt, width=0.80, color='#00a39c')
-# =============================================================================
-    
-    #plt.ylabel("average frequency")
-    #plt.xlabel("degree")
+        #ax1.bar(degs[0], degCounts[0], width = 0.80, color = '#00a39c')
+        ax1.bar(deg, cnt, width = 0.80, color = '#00a39c')
+        ax1.set_xlabel("degree")
+        ax1.set_ylabel("average frequency")
+        ax1.set_title("SFN rate = {0}".format(sfn_ratelist[i]))
         
-    plt.show()    
-    
+        plt.show()
+        plt.close(fig)
+
+
+
+
 
 def betaplot(totaldat, betalist):
     totalp = []
@@ -1496,7 +1513,7 @@ if __name__ == '__main__':
     # =============================================================================
     
     simulations = 50
-    rounds = 10000#10000
+    rounds = 10000
     agentCount = 60
     edgeDegree = 4
     
@@ -1598,7 +1615,7 @@ if __name__ == '__main__':
         gdataSet.append(gdattemp)
         
         
-    for i in range(len(sfn_ratelist)):
+    for i in range(2):#len(sfn_ratelist)):
 #        p = probabilities[i]
         print("now in setting sfw_rate = {0}".format(sfn_ratelist[i]))
         
@@ -1648,7 +1665,6 @@ if __name__ == '__main__':
 #     for i, p in enumerate(probabilities):
 #         datastoreSims(totaldata[i][0], 'prob={0}'.format(p))
 # =============================================================================
-    
     ex2plot(totaldata, graphSet) 
     #ex1plot(totaldata, probabilities, graphSet)
 
@@ -1659,8 +1675,8 @@ if __name__ == '__main__':
     
     print("average process time: {0} s\ntotal process time: {1} s\nall process times: {2}".format(mean(times), sum(times), times))
 
-for i in range(len(totaldata)):
-    datastoreSims(totaldata[i][0], sfn_ratelist[i])
+#for i in range(len(totaldata)):
+#    datastoreSims(totaldata[i][0], sfn_ratelist[i])
 
 
 #dataHandling(totaldata)
