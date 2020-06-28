@@ -1615,7 +1615,7 @@ if __name__ == '__main__':
         gdataSet.append(gdattemp)
         
         
-    for i in range(2):#len(sfn_ratelist)):
+    for i in range(len(sfn_ratelist)):
 #        p = probabilities[i]
         print("now in setting sfw_rate = {0}".format(sfn_ratelist[i]))
         
@@ -1665,7 +1665,8 @@ if __name__ == '__main__':
 #     for i, p in enumerate(probabilities):
 #         datastoreSims(totaldata[i][0], 'prob={0}'.format(p))
 # =============================================================================
-    ex2plot(totaldata, graphSet) 
+    
+    #ex2plot(totaldata, graphSet)
     #ex1plot(totaldata, probabilities, graphSet)
 
     #betaplot with betas [5, 10, 15, 20, 25, 30]
@@ -1675,8 +1676,20 @@ if __name__ == '__main__':
     
     print("average process time: {0} s\ntotal process time: {1} s\nall process times: {2}".format(mean(times), sum(times), times))
 
-#for i in range(len(totaldata)):
-#    datastoreSims(totaldata[i][0], sfn_ratelist[i])
+for i in range(len(totaldata)):
+    datastoreSims(totaldata[i][0], sfn_ratelist[i])
+
+censtats = []
+for i in range(len(totaldata)):
+    centrality_list = gdata['centrality']
+    central_items, central_vals = zip(*centrality_list.items())
+    censtats.append(central_vals)
+
+savecent = pd.DataFrame(np.array(censtats).T)
+savecent.to_csv("Data/degreestatsN=100.parquet", header=None, index=None)
+
+ex2plot(totaldata, graphSet)
+
 
 
 #dataHandling(totaldata)
